@@ -4,7 +4,6 @@ import com.alibaba.cloud.ai.dashscope.api.DashScopeApi;
 import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatModel;
 import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatOptions;
 import com.alibaba.cloud.ai.graph.agent.ReactAgent;
-import com.alibaba.cloud.ai.graph.agent.interceptor.contextediting.ContextEditingInterceptor;
 import com.alibaba.cloud.ai.graph.checkpoint.savers.MemorySaver;
 import com.example.aigmy.interceptor.ContentInterceptor;
 import com.example.aigmy.interceptor.ModelPerformanceInterceptor;
@@ -34,6 +33,11 @@ public class MyAgentConfiguration {
     5. 你们店有哪些汽车配置？
     6. 你们店有哪些汽车优惠政策？
     """;
+    
+    private static final String SYSTEM_VL_PROMPT = """
+      你是一个专业的视觉理解模型，实现思考模式和非思考模式的有效融合，通过图像理解、图像生成、图像编辑、图像分析等能力，实现对图像的深度理解。
+      你的任务是根据用户的问题，给出相应的回答。
+      """;
 
     @Value("${spring.ai.dashscope.api-key}")
     private String apiKey;
@@ -83,4 +87,26 @@ public class MyAgentConfiguration {
                 .build();
     }
 
+    @Bean("vlAgent")
+    public ReactAgent vlAgent(){
+        DashScopeApi dashScopeApi = DashScopeApi.builder()
+                .apiKey(apiKey)
+                .build();
+
+        ChatModel chatModel = DashScopeChatModel.builder()
+                .dashScopeApi(dashScopeApi)
+                .defaultOptions(DashScopeChatOptions.builder()
+                        .withModel("qwen3-vl-plus")
+                        .withMultiModel(true)
+                        .build())
+                .build();
+
+
+        return ReactAgent.builder()
+                .name("vlAgent")
+                .model(chatModel)
+                .systemPrompt(SYSTEM_VL_PROMPT)
+                .saver(new MemorySaver())
+                .build();
+    }
 }
