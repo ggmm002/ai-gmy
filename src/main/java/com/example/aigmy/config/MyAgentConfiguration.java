@@ -8,6 +8,7 @@ import com.alibaba.cloud.ai.graph.agent.interceptor.contextediting.ContextEditin
 import com.alibaba.cloud.ai.graph.checkpoint.savers.MemorySaver;
 import com.example.aigmy.interceptor.ContentInterceptor;
 import com.example.aigmy.interceptor.ModelPerformanceInterceptor;
+import com.example.aigmy.tool.AccountInfoTool;
 import com.example.aigmy.tool.CarBrandTool;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.tool.ToolCallback;
@@ -63,7 +64,12 @@ public class MyAgentConfiguration {
                 .description("查询销售的汽车品牌")
                 .build();
 
-        ContextEditingInterceptor.builder();
+        ToolCallback accountInfoTool = FunctionToolCallback
+                .builder("accountInfoTool", new AccountInfoTool())
+                .description("查询当前用户的账号信息")
+                .inputType(String.class)
+                .build();
+
 
         return ReactAgent.builder()
                 .name("weather_pun_agent")

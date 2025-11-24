@@ -1,9 +1,5 @@
 package com.example.aigmy.tool;
 
-import org.springframework.ai.chat.model.ToolContext;
-import org.springframework.ai.tool.annotation.ToolParam;
-
-import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 // 销售品牌查询工具
