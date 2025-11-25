@@ -4,11 +4,13 @@ import com.alibaba.cloud.ai.dashscope.api.DashScopeApi;
 import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatModel;
 import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatOptions;
 import com.alibaba.cloud.ai.graph.agent.ReactAgent;
+import com.alibaba.cloud.ai.graph.agent.hook.hip.HumanInTheLoopHook;
+import com.alibaba.cloud.ai.graph.agent.hook.hip.ToolConfig;
 import com.alibaba.cloud.ai.graph.checkpoint.savers.MemorySaver;
 import com.example.aigmy.interceptor.ContentInterceptor;
 import com.example.aigmy.interceptor.ModelPerformanceInterceptor;
-import com.example.aigmy.tool.AccountInfoTool;
-import com.example.aigmy.tool.CarBrandTool;
+import com.example.aigmy.tool.*;
+
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.function.FunctionToolCallback;
@@ -16,6 +18,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
+import jakarta.annotation.PostConstruct;
+
+import java.util.List;
 
 /**
  * @author guomaoyang 2025/11/22
@@ -25,6 +31,9 @@ public class MyAgentConfiguration {
 
     private static final String SYSTEM_PROMPT = """
     你是一个汽车门店的销售经理，你的任务是根据用户的问题，给出相应的回答。
+    客户询问销售的车型，你可以使用saleCarsTool工具查询。客户询问的车型信息，你可以使用saleCarsInfoTool工具查询，
+    当客户询问的车型名称不完全与工具查询的一致，你需要从查询结果中提取车型名称，然后与客户确认。
+    其他需要传入‘车型名称’参数的工具，你需要完全按照从工具查询结果中提取的车型名称传入。
     用户的问题可能是：
     1. 你们店有哪些汽车品牌？
     2. 你们店有哪些汽车型号？
@@ -48,6 +57,33 @@ public class MyAgentConfiguration {
     @Autowired
     private ModelPerformanceInterceptor modelPerformanceInterceptor;
 
+    private ToolCallback accountInfoTool;
+    private ToolCallback carBrandTool;
+    private ToolCallback placeOrderTool;
+
+    private ToolCallback saleCarsInfoTool;
+
+    @PostConstruct
+    public void init() {
+        this.accountInfoTool = FunctionToolCallback.builder("accountInfoTool", new AccountInfoTool())
+                .description("查询当前用户的账号信息")
+                .inputType(String.class)
+                .build();
+        this.carBrandTool = FunctionToolCallback.builder("carBrandTool", new CarBrandTool())
+                .description("查询销售的汽车品牌")
+                .build();
+        this.placeOrderTool = FunctionToolCallback.builder("placeOrderTool", new PlaceOrderTool())
+                .description("下单操作")
+                .inputType(String.class)
+                .build();
+        this.saleCarsInfoTool = FunctionToolCallback.builder("saleCarsInfoTool", new SaleCarsInfoTool())
+                .description("查询销售的车型信息")
+                .inputType(String.class)
+                .build();
+    }
+
+
+
     @Bean("firstAgent")
     public ReactAgent firstAgent(){
         DashScopeApi dashScopeApi = DashScopeApi.builder()
@@ -62,18 +98,6 @@ public class MyAgentConfiguration {
                         .withMaxToken(1000)
                         .build())
                 .build();
-
-        ToolCallback carBrandTool = FunctionToolCallback
-                .builder("carBrandTool", new CarBrandTool())
-                .description("查询销售的汽车品牌")
-                .build();
-
-        ToolCallback accountInfoTool = FunctionToolCallback
-                .builder("accountInfoTool", new AccountInfoTool())
-                .description("查询当前用户的账号信息")
-                .inputType(String.class)
-                .build();
-
 
         return ReactAgent.builder()
                 .name("weather_pun_agent")
@@ -108,5 +132,36 @@ public class MyAgentConfiguration {
                 .systemPrompt(SYSTEM_VL_PROMPT)
                 .saver(new MemorySaver())
                 .build();
+    }
+
+    @Bean("hitlAgent")
+    public ReactAgent hitlAgent(){
+        DashScopeApi dashScopeApi = DashScopeApi.builder()
+                .apiKey(apiKey)
+                .build();
+
+        ChatModel chatModel = DashScopeChatModel.builder()
+                .dashScopeApi(dashScopeApi)
+                .defaultOptions(DashScopeChatOptions.builder()
+                        .withModel("qwen3-max")
+                        .build())
+                .build();
+
+        HumanInTheLoopHook humanInTheLoopHook = HumanInTheLoopHook.builder()
+                .approvalOn("placeOrderTool", ToolConfig.builder()
+                        .description("下单操作需要人工审批")
+                        .build())
+                .build();
+
+
+        return ReactAgent.builder()
+                .name("hitlAgent")
+                .model(chatModel)
+                .systemPrompt(SYSTEM_PROMPT)
+                .tools(accountInfoTool,placeOrderTool,saleCarsInfoTool)
+                .hooks(List.of(humanInTheLoopHook))
+                .saver(new MemorySaver())
+                .build();
+
     }
 }

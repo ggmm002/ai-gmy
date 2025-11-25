@@ -13,27 +13,11 @@ import java.util.function.BiFunction;
  * @author guomaoyang 2025/11/23
  */
 @Slf4j
-public class AccountInfoTool implements BiFunction<String, ToolContext,String> {
-
-
-  private static final Map<Long, Map<String, Object>> USER_DATABASE = Map.of(
-    1L, Map.of(
-        "name", "爱丽丝",
-        "account_type", "Premium",
-        "balance", 5000,
-        "email", "alice@example.com"
-    ),
-    2L, Map.of(
-        "name", "鲍勃",
-        "account_type", "Standard",
-        "balance", 1200,
-        "email", "bob@example.com"
-    )
-);
+public class PlaceOrderTool implements BiFunction<String, ToolContext,String> {
 
 
     @Override
-    public String apply(@ToolParam(required = false) String s, ToolContext toolContext) {
+    public String apply(@ToolParam(description = "客户信息和下单的汽车品牌车型信息") String orderInfo, ToolContext toolContext) {
         RunnableConfig runnableConfig = (RunnableConfig) toolContext.getContext().get("_AGENT_CONFIG_");
         Optional<Object> optional = runnableConfig.metadata("user_id");
         Long userId = null;
@@ -44,10 +28,6 @@ public class AccountInfoTool implements BiFunction<String, ToolContext,String> {
             return "未获取到有效的用户信息";
 
         }
-        Map<String, Object> userInfo = USER_DATABASE.get(userId);
-        if(userInfo == null){
-            return "用户不存在";
-        }
-        return userInfo.toString();
+        return "用户id："+userId+"，下单成功";
     }
 }
