@@ -1,0 +1,28 @@
+server:
+  port: 7080
+
+spring:
+  application:
+    name: ai-gmy
+  ai:
+    dashscope:
+      embedding:
+        options:
+          model: text-embedding-v4
+          dimensions: 1536
+      chat:
+        options:
+          model: qwen-max
+      api-key: sk-883eca171d2d434eab7e4d503987156f
+    vectorstore:
+      milvus:
+        client:
+          host: ${MILVUS_HOST:localhost} # default: localhost
+          port: ${MILVUS_PORT:19530} # default: 19530
+          username: ${MILVUS_USERNAME:root} # default: root
+          password: ${MILVUS_PASSWORD:milvus} # default: milvus
+        databaseName: ${MILVUS_DATABASE_NAME:default} # default: default
+        collectionName: ${MILVUS_COLLECTION_NAME:vector_store} # default: vector_store
+        embeddingDimension: 1536 # default: 1536
+        indexType: IVF_FLAT # default: IVF_FLAT
+        metricType: COSINE # default: COSINE
