@@ -3,6 +3,7 @@ package com.example.aigmy.config;
 import com.alibaba.cloud.ai.dashscope.api.DashScopeApi;
 import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatModel;
 import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatOptions;
+import com.alibaba.cloud.ai.graph.agent.AgentTool;
 import com.alibaba.cloud.ai.graph.agent.ReactAgent;
 import com.alibaba.cloud.ai.graph.agent.hook.hip.HumanInTheLoopHook;
 import com.alibaba.cloud.ai.graph.agent.hook.hip.ToolConfig;
@@ -164,4 +165,66 @@ public class MyAgentConfiguration {
                 .build();
 
     }
+
+    @Bean("multiAgent")
+    public ReactAgent multiAgent() {
+        DashScopeApi dashScopeApi = DashScopeApi.builder()
+                .apiKey(apiKey)
+                .build();
+
+        ChatModel chatModel = DashScopeChatModel.builder()
+                .dashScopeApi(dashScopeApi)
+                .defaultOptions(DashScopeChatOptions.builder()
+                        .withModel("qwen3-max")
+                        .build())
+                .build();
+
+        ReactAgent writerAgent = ReactAgent.builder()
+                .name("full_typed_writer")
+                .model(chatModel)
+                .description("完整类型化的写作工具")
+                .instruction("根据结构化输入（topic、wordCount、style）创作文章，并返回结构化输出（title、content、characterCount）。")
+                .inputType(ArticleRequest.class) // [!code highlight]
+                .outputType(ArticleOutput.class) // [!code highlight]
+                .build();
+
+        ReactAgent reviewerAgent = ReactAgent.builder()
+                .name("typed_reviewer")
+                .model(chatModel)
+                .description("完整类型化的评审工具")
+                .instruction("对文章进行评审，返回评审意见（comment、approved、suggestions）。")
+                .outputType(ReviewOutput.class) // [!code highlight]
+                .build();
+        return ReactAgent.builder()
+                .name("orchestrator")
+                .model(chatModel)
+                .instruction("协调写作和评审流程。先调用写作工具创作文章，然后调用评审工具进行评审。")
+                .tools(
+
+                        AgentTool.getFunctionToolCallback(writerAgent),
+                        AgentTool.getFunctionToolCallback(reviewerAgent)
+                )
+                .build();
+    }
+
+}
+class ArticleRequest{
+    private String topic;
+    private int wordCount;
+    private String style;
+
+}
+
+ class ArticleOutput {
+    private String title;
+    private String content;
+    private int characterCount;
+    // getters and setters
+}
+
+ class ReviewOutput {
+    private String comment;
+    private boolean approved;
+    private List<String> suggestions;
+    // getters and setters
 }
