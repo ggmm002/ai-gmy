@@ -20,9 +20,9 @@ public class PlaceOrderTool implements BiFunction<String, ToolContext,String> {
     public String apply(@ToolParam(description = "客户信息和下单的汽车品牌车型信息") String orderInfo, ToolContext toolContext) {
         RunnableConfig runnableConfig = (RunnableConfig) toolContext.getContext().get("_AGENT_CONFIG_");
         Optional<Object> optional = runnableConfig.metadata("user_id");
-        Long userId = null;
+        String userId = null;
         if(optional.isPresent()){
-            userId = (Long) optional.get();
+            userId = (String) optional.get();
         }
         if(userId == null){
             return "未获取到有效的用户信息";
