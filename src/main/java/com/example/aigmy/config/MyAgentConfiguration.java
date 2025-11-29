@@ -11,9 +11,13 @@ import com.example.aigmy.interceptor.ContentInterceptor;
 import com.example.aigmy.interceptor.ModelPerformanceInterceptor;
 import com.example.aigmy.tool.*;
 
+import org.springframework.ai.chat.client.advisor.api.Advisor;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor;
+import org.springframework.ai.rag.retrieval.search.VectorStoreDocumentRetriever;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.function.FunctionToolCallback;
+import org.springframework.ai.vectorstore.milvus.MilvusVectorStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -48,6 +52,17 @@ public class MyAgentConfiguration {
       你的任务是根据用户的问题，给出相应的回答。
       """;
 
+    private static final String SYSTEM_RAG_PROMPT = """
+      你是一个基于知识库的智能助手，你的任务是根据用户的问题，从知识库中检索相关信息并给出准确的回答。
+      当用户提问时，你应该：
+      1. 首先使用 vectorSearchTool 工具在知识库中搜索相关内容
+      2. 根据检索到的信息，结合你的知识给出准确、详细的回答
+      3. 如果知识库中没有相关信息，诚实告知用户
+      4. 尽量使用知识库中的原文内容来回答，保持信息的准确性
+      5. 回答要清晰、有条理，并且要结合用户的具体问题
+      请始终基于从知识库检索到的信息来回答问题，不要编造信息。
+      """;
+
     @Value("${spring.ai.dashscope.api-key}")
     private String apiKey;
 
@@ -57,11 +72,17 @@ public class MyAgentConfiguration {
     @Autowired
     private ModelPerformanceInterceptor modelPerformanceInterceptor;
 
+    @Autowired
+    private VectorSearchTool vectorSearchTool;
+
+    @Autowired
+    private MilvusVectorStore vectorStore;
+
     private ToolCallback accountInfoTool;
     private ToolCallback carBrandTool;
     private ToolCallback placeOrderTool;
-
     private ToolCallback saleCarsInfoTool;
+    private ToolCallback vectorSearchToolCallback;
 
     @PostConstruct
     public void init() {
@@ -78,6 +99,10 @@ public class MyAgentConfiguration {
                 .build();
         this.saleCarsInfoTool = FunctionToolCallback.builder("saleCarsInfoTool", new SaleCarsInfoTool())
                 .description("查询销售的车型信息")
+                .inputType(String.class)
+                .build();
+        this.vectorSearchToolCallback = FunctionToolCallback.builder("vectorSearchTool", vectorSearchTool)
+                .description("从向量知识库中搜索与查询内容相关的文档和信息")
                 .inputType(String.class)
                 .build();
     }
@@ -163,5 +188,36 @@ public class MyAgentConfiguration {
                 .saver(new MemorySaver())
                 .build();
 
+    }
+
+    @Bean("ragAgent")
+    public ReactAgent ragAgent(){
+        DashScopeApi dashScopeApi = DashScopeApi.builder()
+                .apiKey(apiKey)
+                .build();
+
+        Advisor retrievalAugmentationAdvisor = RetrievalAugmentationAdvisor.builder()
+                .documentRetriever(VectorStoreDocumentRetriever.builder()
+                        .similarityThreshold(0.50)
+                        .vectorStore(vectorStore)
+                        .build())
+                .build();
+
+        ChatModel chatModel = DashScopeChatModel.builder()
+                .dashScopeApi(dashScopeApi)
+                .defaultOptions(DashScopeChatOptions.builder()
+                        .withModel("qwen-max")
+                        .withTemperature(0.3)
+                        .withMaxToken(2000)
+                        .build())
+                .build();
+
+        return ReactAgent.builder()
+                .name("ragAgent")
+                .model(chatModel)
+                .systemPrompt(SYSTEM_RAG_PROMPT)
+                .tools(vectorSearchToolCallback)
+                .saver(new MemorySaver())
+                .build();
     }
 }

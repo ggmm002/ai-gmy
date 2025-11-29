@@ -2,7 +2,7 @@
 
 ## 项目概述
 
-AI-GMY 是一个基于 Spring Boot 和 Spring AI Alibaba Agent Framework 构建的智能汽车销售助手系统。该项目集成了阿里云 DashScope 的 AI 模型，为汽车门店提供智能化的客户服务能力，包括文本对话、图片分析、订单处理等功能。
+AI-GMY 是一个基于 Spring Boot 和 Spring AI Alibaba Agent Framework 构建的智能汽车销售助手系统。该项目集成了阿里云 DashScope 的 AI 模型，为汽车门店提供智能化的客户服务能力，包括文本对话、图片分析、订单处理、RAG（检索增强生成）等功能。
 
 ## 技术栈
 
@@ -14,8 +14,17 @@ AI-GMY 是一个基于 Spring Boot 和 Spring AI Alibaba Agent Framework 构建�
   - `qwen3-max`: 增强对话模型
   - `qwen3-vl-plus`: 视觉理解模型
   - `qwen-vl-max-latest`: 视觉理解模型（最新版）
+  - `text-embedding-v4`: 文本嵌入模型（用于向量化）
+- **向量数据库**: Milvus
 - **构建工具**: Maven
-- **其他依赖**: Lombok
+- **主要依赖**:
+  - Spring Boot Starter Web
+  - Spring AI Alibaba Agent Framework 1.1.0.0-M5
+  - Spring AI Alibaba Starter DashScope 1.1.0.0-M5
+  - Spring AI Milvus Store 1.1.0
+  - Spring AI Autoconfigure Vector Store Milvus 1.1.0
+  - Spring AI Advisors Vector Store 1.1.0
+  - Lombok 1.18.30
 
 ## 项目结构
 
@@ -27,10 +36,12 @@ ai-gmy/
 │   │   │   └── com/example/aigmy/
 │   │   │       ├── AiGmyApplication.java          # 主应用入口
 │   │   │       ├── config/
-│   │   │       │   └── MyAgentConfiguration.java   # 智能体配置类
+│   │   │       │   ├── MyAgentConfiguration.java   # 智能体配置类
+│   │   │       │   └── VectorDataInit.java         # 向量数据初始化（已注释）
 │   │   │       ├── controller/
 │   │   │       │   ├── FirstController.java       # 基础对话和图片分析接口
-│   │   │       │   └── HitlController.java        # 人机交互接口
+│   │   │       │   ├── HitlController.java        # 人机交互接口
+│   │   │       │   └── RAGController.java         # RAG 向量检索接口
 │   │   │       ├── interceptor/
 │   │   │       │   ├── ContentInterceptor.java    # 内容拦截器（敏感词过滤）
 │   │   │       │   └── ModelPerformanceInterceptor.java  # 性能监控拦截器
@@ -40,8 +51,11 @@ ai-gmy/
 │   │   │           ├── PlaceOrderTool.java         # 下单工具
 │   │   │           └── SaleCarsInfoTool.java       # 车型信息查询工具
 │   │   └── resources/
-│   │       ├── application.properties              # 应用配置文件
-│   │       └── img/                                # 图片资源目录
+│   │       ├── application.yml                     # 应用配置文件（YAML格式）
+│   │       ├── test.txt                            # 测试文档（用于RAG向量化）
+│   │       ├── img/                                # 图片资源目录
+│   │       └── static/                             # 静态资源目录
+│   │           └── index.html                      # 前端页面
 │   └── test/                                       # 测试代码
 └── pom.xml                                         # Maven 配置文件
 ```
@@ -172,18 +186,77 @@ ai-gmy/
   - 支持人工审批后继续执行
   - 自动处理审批流程（当前实现为自动批准）
 
+#### 4.3 RAGController
+
+##### GET `/rag/vectorAdd`
+- **功能**: 将文档添加到向量数据库
+- **参数**: 无
+- **返回**: void
+- **实现逻辑**:
+  1. 从 `src/main/resources/test.txt` 加载文档
+  2. 使用 `TokenTextSplitter` 将文档分割成块（chunk size: 64）
+  3. 分批添加到 Milvus 向量存储（每批最多10个文档块）
+- **日志**: 输出批次添加进度信息
+
+##### GET `/rag/vectorSearch`
+- **功能**: 在向量数据库中执行相似度搜索
+- **参数**: 
+  - `query` (String): 查询文本
+- **返回**: 相似文档列表（字符串格式）
+- **实现逻辑**:
+  1. 使用查询文本在 Milvus 向量存储中执行相似度搜索
+  2. 返回 topK 个最相似的文档（topK = query.length()）
+
 ## 配置说明
 
-### application.properties
+### application.yml
 
-```properties
-spring.application.name=ai-gmy
-server.port=7080
-spring.ai.dashscope.chat.options.model=qwen-max
-spring.ai.dashscope.api-key=sk-883eca171d2d434eab7e4d503987156f
+```yaml
+server:
+  port: 7080
+
+spring:
+  application:
+    name: ai-gmy
+  ai:
+    dashscope:
+      embedding:
+        options:
+          model: text-embedding-v4
+          dimensions: 1536
+      chat:
+        options:
+          model: qwen-max
+      api-key: sk-883eca171d2d434eab7e4d503987156f
+    vectorstore:
+      milvus:
+        client:
+          host: ${MILVUS_HOST:localhost}
+          port: ${MILVUS_PORT:19530}
+          username: ${MILVUS_USERNAME:root}
+          password: ${MILVUS_PASSWORD:milvus}
+        databaseName: ${MILVUS_DATABASE_NAME:default}
+        collectionName: ${MILVUS_COLLECTION_NAME:vector_store}
+        embeddingDimension: 1536
+        indexType: IVF_FLAT
+        metricType: COSINE
 ```
 
-**重要**: 请将 `spring.ai.dashscope.api-key` 替换为您自己的阿里云 DashScope API Key。
+**重要配置说明**:
+
+1. **DashScope API Key**: 请将 `spring.ai.dashscope.api-key` 替换为您自己的阿里云 DashScope API Key
+2. **Milvus 配置**: 
+   - 支持通过环境变量配置 Milvus 连接信息
+   - 默认连接到本地 Milvus 服务（localhost:19530）
+   - 向量维度为 1536（与 text-embedding-v4 模型匹配）
+   - 使用 IVF_FLAT 索引类型和 COSINE 相似度度量
+3. **环境变量**:
+   - `MILVUS_HOST`: Milvus 服务器地址（默认: localhost）
+   - `MILVUS_PORT`: Milvus 服务器端口（默认: 19530）
+   - `MILVUS_USERNAME`: Milvus 用户名（默认: root）
+   - `MILVUS_PASSWORD`: Milvus 密码（默认: milvus）
+   - `MILVUS_DATABASE_NAME`: 数据库名称（默认: default）
+   - `MILVUS_COLLECTION_NAME`: 集合名称（默认: vector_store）
 
 ## 使用示例
 
@@ -218,6 +291,24 @@ curl -X POST "http://localhost:7080/analyzeImage?imageUrl=https://example.com/im
 ```bash
 curl "http://localhost:7080/hitl/chat?question=我要下单购买奔驰C260L&userId=1"
 ```
+
+### 6. RAG 向量检索
+
+#### 6.1 添加文档到向量数据库
+
+```bash
+curl "http://localhost:7080/rag/vectorAdd"
+```
+
+此接口会读取 `src/main/resources/test.txt` 文件，将其分割后添加到 Milvus 向量数据库。
+
+#### 6.2 向量相似度搜索
+
+```bash
+curl "http://localhost:7080/rag/vectorSearch?query=SpringAIAlibaba如何创建项目"
+```
+
+此接口会根据查询文本在向量数据库中进行相似度搜索，返回相关文档。
 
 ## 数据模型
 
@@ -296,6 +387,14 @@ curl "http://localhost:7080/hitl/chat?question=我要下单购买奔驰C260L&use
 - 通过 `ModelPerformanceInterceptor` 监控模型调用性能
 - 记录消息条数和响应时间
 
+### 6. RAG（检索增强生成）
+
+- 使用 Milvus 向量数据库存储文档向量
+- 支持文档的向量化和相似度搜索
+- 使用 `TokenTextSplitter` 将长文档分割成小块
+- 使用 DashScope 的 `text-embedding-v4` 模型进行文本向量化
+- 支持批量添加文档到向量存储
+
 ## 开发规范
 
 根据项目规则，开发时需要注意：
@@ -338,6 +437,14 @@ curl "http://localhost:7080/hitl/chat?question=我要下单购买奔驰C260L&use
 - 添加应用监控（如 Prometheus、Micrometer）
 - 实现日志聚合和分析
 
+### 6. RAG 功能增强
+
+- 集成 RAG 功能到智能体中，实现基于知识库的回答
+- 支持多种文档格式（PDF、Word、Markdown 等）
+- 优化文档分块策略，提高检索精度
+- 实现查询结果的相关性排序和过滤
+- 支持多轮对话中的上下文检索
+
 ## 常见问题
 
 ### Q: 如何更换 AI 模型？
@@ -365,6 +472,25 @@ A:
 1. 修改 `HitlController.chat()` 方法，将自动批准改为返回审批信息
 2. 创建审批接口，接收审批结果
 3. 使用审批结果继续执行智能体流程
+
+### Q: 如何使用 RAG 功能？
+
+A: 
+1. **准备 Milvus 服务**: 确保 Milvus 服务已启动并可通过配置的地址访问
+2. **添加文档**: 调用 `/rag/vectorAdd` 接口将文档添加到向量数据库
+3. **执行搜索**: 调用 `/rag/vectorSearch` 接口进行相似度搜索
+4. **自定义文档**: 修改 `RAGController.vectorAdd()` 方法中的文件路径，或扩展支持更多文档格式
+
+### Q: 如何配置 Milvus 连接？
+
+A: 
+1. **本地 Milvus**: 使用默认配置即可（localhost:19530）
+2. **远程 Milvus**: 通过环境变量设置 `MILVUS_HOST` 和 `MILVUS_PORT`
+3. **认证信息**: 通过 `MILVUS_USERNAME` 和 `MILVUS_PASSWORD` 环境变量配置
+
+### Q: 如何调整向量检索的 topK 值？
+
+A: 修改 `RAGController.vectorSearch()` 方法中的 `topK()` 参数。当前实现为 `query.length()`，可以根据实际需求调整。
 
 ## 版本信息
 

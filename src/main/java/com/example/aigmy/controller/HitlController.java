@@ -52,6 +52,8 @@ public class HitlController {
         if (result.isPresent() && result.get() instanceof InterruptionMetadata) {
             InterruptionMetadata interruptionMetadata = (InterruptionMetadata) result.get();
 
+            log.info("interruptionMetadata信息:{}",interruptionMetadata);
+
             log.info("检测到中断，需要人工审批");
             List<InterruptionMetadata.ToolFeedback> toolFeedbacks =
                     interruptionMetadata.toolFeedbacks();
