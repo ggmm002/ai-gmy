@@ -8,10 +8,13 @@ import com.alibaba.cloud.ai.graph.agent.ReactAgent;
 import com.alibaba.cloud.ai.graph.agent.hook.hip.HumanInTheLoopHook;
 import com.alibaba.cloud.ai.graph.agent.hook.hip.ToolConfig;
 import com.alibaba.cloud.ai.graph.checkpoint.savers.MemorySaver;
+import com.example.aigmy.config.dto.ArticleOutput;
+import com.example.aigmy.config.dto.ArticleRequest;
+import com.example.aigmy.config.dto.ReviewOutput;
 import com.example.aigmy.interceptor.ContentInterceptor;
 import com.example.aigmy.interceptor.ModelPerformanceInterceptor;
 import com.example.aigmy.tool.*;
-
+import jakarta.annotation.PostConstruct;
 import org.springframework.ai.chat.client.advisor.api.Advisor;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor;
@@ -23,8 +26,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-
-import jakarta.annotation.PostConstruct;
 
 import java.util.List;
 
@@ -264,23 +265,4 @@ public class MyAgentConfiguration {
     }
 
 }
-class ArticleRequest{
-    private String topic;
-    private int wordCount;
-    private String style;
 
-}
-
- class ArticleOutput {
-    private String title;
-    private String content;
-    private int characterCount;
-    // getters and setters
-}
-
- class ReviewOutput {
-    private String comment;
-    private boolean approved;
-    private List<String> suggestions;
-    // getters and setters
-}
