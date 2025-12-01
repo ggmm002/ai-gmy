@@ -5,11 +5,12 @@
 AI-GMY 是一个基于 Spring Boot 和 Spring AI Alibaba Agent Framework 构建的智能汽车销售助手系统。该项目集成了阿里云 DashScope 的 AI 模型，为汽车门店提供智能化的客户服务能力，包括文本对话、图片分析、订单处理、RAG（检索增强生成）、多智能体协作等功能。
 
 **核心特性**:
-- 🤖 **5个智能体**: 基础对话、视觉理解、人机交互、RAG检索、多智能体协作
-- 🛠️ **5个工具**: 账号查询、品牌查询、下单、车型查询、向量搜索
+- 🤖 **6个智能体**: 基础对话、视觉理解、人机交互、RAG检索、多智能体协作、MCP互联网搜索
+- 🛠️ **5个工具 + MCP工具**: 账号查询、品牌查询、下单、车型查询、向量搜索、互联网搜索
 - 🔒 **内容安全**: 敏感词过滤、性能监控
 - 📚 **知识库**: 基于 Milvus 的向量检索和 RAG 问答
 - 👥 **多智能体**: 支持智能体间的协作和编排
+- 🌐 **MCP 集成**: 通过 Model Context Protocol 集成外部搜索服务
 
 ## 技术栈
 
@@ -28,10 +29,12 @@ AI-GMY 是一个基于 Spring Boot 和 Spring AI Alibaba Agent Framework 构建�
   - Spring Boot Starter Web
   - Spring AI Alibaba Agent Framework 1.1.0.0-M5
   - Spring AI Alibaba Starter DashScope 1.1.0.0-M5
-  - Spring AI Milvus Store 1.1.0
-  - Spring AI Autoconfigure Vector Store Milvus 1.1.0
-  - Spring AI Advisors Vector Store 1.1.0
+  - Spring AI Milvus Store 1.1.0-M4
+  - Spring AI Autoconfigure Vector Store Milvus 1.1.0-M4
+  - Spring AI Advisors Vector Store 1.1.0-M4
+  - Spring AI Starter MCP Client 1.1.0-M4
   - Lombok 1.18.30
+- **MCP 服务**: bing-cn-mcp（通过 npx 运行）
 
 ## 项目结构
 
@@ -48,6 +51,7 @@ ai-gmy/
 │   │   │       ├── controller/
 │   │   │       │   ├── FirstController.java       # 基础对话和图片分析接口
 │   │   │       │   ├── HitlController.java        # 人机交互接口
+│   │   │       │   ├── McpSearchController.java   # MCP 互联网搜索接口
 │   │   │       │   ├── MultiController.java       # 多智能体协作接口
 │   │   │       │   └── RAGController.java         # RAG 向量检索接口
 │   │   │       ├── dto/
@@ -65,6 +69,7 @@ ai-gmy/
 │   │   │           └── VectorSearchTool.java       # 向量搜索工具
 │   │   └── resources/
 │   │       ├── application.yml                     # 应用配置文件（YAML格式）
+│   │       ├── mcp-servers.json                    # MCP 服务器配置文件
 │   │       ├── test.txt                            # 测试文档（用于RAG向量化）
 │   │       ├── img/                                # 图片资源目录
 │   │       └── static/                             # 静态资源目录
@@ -130,6 +135,18 @@ ai-gmy/
   - 使用 `AgentTool.getFunctionToolCallback()` 将子智能体作为工具集成
   - 支持类型化的输入输出（使用 DTO 类）
   - 实现写作和评审的自动化流程
+
+#### 1.6 mcpSearchAgent（MCP 互联网搜索智能体）
+
+- **模型**: `qwen3-max`
+- **功能**: 基于 MCP（Model Context Protocol）的互联网搜索能力
+- **MCP 服务**: `bing-cn-mcp`（必应中国搜索）
+- **特性**: 
+  - 通过 Spring AI MCP 客户端集成外部搜索服务
+  - 支持实时互联网搜索，获取最新信息
+  - 自动获取并使用 MCP 服务提供的工具
+  - 支持多轮对话和会话隔离
+- **系统提示词**: 定义为智能搜索助手，具备互联网搜索能力，能够获取最新信息并回答问题
 
 ### 2. 工具（Tools）
 
@@ -289,6 +306,32 @@ ai-gmy/
   - 支持类型化的输入输出
   - 使用 `threadId` 实现会话隔离
 
+#### 4.5 McpSearchController
+
+##### GET `/mcp/search`
+- **功能**: MCP 互联网搜索接口
+- **参数**: 
+  - `question` (String): 用户问题
+- **返回**: 基于互联网搜索的 AI 回答
+- **特性**: 
+  - 使用 bing-cn-mcp 服务进行互联网搜索
+  - 获取最新的网络信息回答问题
+
+##### GET `/mcp/chat`
+- **功能**: MCP 互联网搜索接口（带用户会话）
+- **参数**: 
+  - `question` (String): 用户问题
+  - `userId` (Long): 用户ID（用于会话隔离）
+- **返回**: 基于互联网搜索的 AI 回答
+- **特性**: 
+  - 支持多轮对话，保留上下文
+  - 使用 `threadId` 实现会话隔离
+
+##### GET `/mcp/health`
+- **功能**: MCP 服务健康检查
+- **参数**: 无
+- **返回**: MCP 服务状态信息
+
 ## 配置说明
 
 ### application.yml
@@ -323,6 +366,57 @@ spring:
         indexType: IVF_FLAT
         metricType: COSINE
 ```
+
+### MCP 客户端配置
+
+项目集成了 Spring AI MCP 客户端，用于连接外部 MCP 服务（如 bing-cn-mcp 互联网搜索）。
+
+#### mcp-servers.json
+
+```json
+{
+  "mcpServers": {
+    "bingcn": {
+      "command": "npx",
+      "args": [
+        "bing-cn-mcp"
+      ]
+    }
+  }
+}
+```
+
+#### application.yml MCP 配置
+
+```yaml
+spring:
+  ai:
+    mcp:
+      client:
+        enabled: true
+        name: ai-gmy-mcp-client
+        version: 1.0.0
+        type: SYNC
+        request-timeout: 60s
+        stdio:
+          root-change-notification: true
+          servers-configuration: classpath:mcp-servers.json
+        toolcallback:
+          enabled: true
+```
+
+**MCP 配置说明**:
+
+1. **enabled**: 启用 MCP 客户端
+2. **type**: SYNC 表示同步模式，ASYNC 表示异步模式
+3. **request-timeout**: MCP 请求超时时间
+4. **servers-configuration**: MCP 服务器配置文件路径
+5. **toolcallback.enabled**: 启用工具回调自动注入
+
+**使用前提**:
+- 需要安装 Node.js 和 npm
+- 确保 `npx` 命令可用
+- 首次使用时会自动下载 `bing-cn-mcp` 包
 
 **重要配置说明**:
 
@@ -415,6 +509,32 @@ curl "http://localhost:7080/multi/chat?question=请写一篇关于人工智能�
 ```
 
 此接口会协调写作智能体和评审智能体，完成文章的创作和评审流程。
+
+### 8. MCP 互联网搜索
+
+#### 8.1 简单搜索
+
+```bash
+curl "http://localhost:7080/mcp/search?question=今天的新闻有哪些"
+```
+
+此接口会使用 MCP 服务进行互联网搜索，获取最新信息。
+
+#### 8.2 带会话的搜索
+
+```bash
+curl "http://localhost:7080/mcp/chat?question=最近有什么科技新闻&userId=1"
+```
+
+此接口支持多轮对话，每次搜索都会保留上下文。
+
+#### 8.3 健康检查
+
+```bash
+curl "http://localhost:7080/mcp/health"
+```
+
+检查 MCP 搜索服务是否正常运行。
 
 ## 数据模型
 
@@ -593,6 +713,14 @@ curl "http://localhost:7080/multi/chat?question=请写一篇关于人工智能�
 - 实现智能体间的条件分支和循环逻辑
 - 支持智能体的动态组合和编排
 
+### 8. MCP 互联网搜索
+
+- ✅ 已实现 MCP 客户端集成（mcpSearchAgent）
+- 通过 Spring AI MCP Client 连接外部 MCP 服务
+- 集成 bing-cn-mcp 服务，支持必应搜索
+- 支持 STDIO 传输方式，通过 npx 启动 MCP 服务
+- 自动加载 MCP 服务提供的工具
+
 ## 常见问题
 
 ### Q: 如何更换 AI 模型？
@@ -638,6 +766,24 @@ A:
 3. 返回结果包含完整的文章内容和评审意见
 4. 可以通过修改 `MyAgentConfiguration.multiAgent()` 方法添加更多子智能体
 
+### Q: 如何使用 MCP 互联网搜索功能？
+
+A:
+1. 确保已安装 Node.js 和 npm，且 `npx` 命令可用
+2. 启动应用后，MCP 客户端会自动连接到 bing-cn-mcp 服务
+3. 调用 `/mcp/search` 接口进行简单搜索
+4. 调用 `/mcp/chat` 接口进行带会话的搜索
+5. 调用 `/mcp/health` 检查 MCP 服务状态
+
+### Q: MCP 服务启动失败怎么办？
+
+A:
+1. 检查 Node.js 和 npm 是否正确安装：`node -v` 和 `npm -v`
+2. 检查 npx 命令是否可用：`npx -v`
+3. 手动测试 MCP 服务：`npx bing-cn-mcp`
+4. 检查网络连接，首次运行需要下载 npm 包
+5. 查看应用日志，检查 MCP 工具加载情况
+
 ### Q: 如何配置 Milvus 连接？
 
 A: 
@@ -653,6 +799,14 @@ A:
 - **ragAgent**: 修改 `RetrievalAugmentationAdvisor` 中的 `similarityThreshold` 参数（当前为 0.50）
 
 ## 更新日志
+
+### 2025/12/1 (v2)
+- 新增 `mcpSearchAgent` MCP 互联网搜索智能体
+- 新增 `McpSearchController` 控制器，提供 MCP 搜索 API
+- 集成 Spring AI MCP 客户端，支持 STDIO 传输
+- 新增 `mcp-servers.json` 配置文件
+- 更新 `application.yml` 添加 MCP 客户端配置
+- 集成 `bing-cn-mcp` 服务，支持互联网搜索
 
 ### 2025/12/1
 - 新增 `multiAgent` 多智能体协作功能

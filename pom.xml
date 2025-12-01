@@ -77,9 +77,10 @@
             <version>${spring-ai.version}</version>
         </dependency>
 
+        <!-- MCP Client for STDIO transport -->
         <dependency>
             <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-starter-mcp-client-webflux</artifactId>
+            <artifactId>spring-ai-starter-mcp-client</artifactId>
             <version>${spring-ai.version}</version>
         </dependency>
 

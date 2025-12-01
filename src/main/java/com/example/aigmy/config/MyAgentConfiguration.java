@@ -13,10 +13,13 @@ import com.example.aigmy.config.dto.ArticleRequest;
 import com.example.aigmy.config.dto.ReviewOutput;
 import com.example.aigmy.interceptor.ContentInterceptor;
 import com.example.aigmy.interceptor.ModelPerformanceInterceptor;
+import com.example.aigmy.interceptor.MyToolsInceptor;
 import com.example.aigmy.tool.*;
 import jakarta.annotation.PostConstruct;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.advisor.api.Advisor;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.mcp.SyncMcpToolCallbackProvider;
 import org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor;
 import org.springframework.ai.rag.retrieval.search.VectorStoreDocumentRetriever;
 import org.springframework.ai.tool.ToolCallback;
@@ -32,6 +35,7 @@ import java.util.List;
 /**
  * @author guomaoyang 2025/11/22
  */
+@Slf4j
 @Configuration
 public class MyAgentConfiguration {
 
@@ -48,7 +52,7 @@ public class MyAgentConfiguration {
     5. 你们店有哪些汽车配置？
     6. 你们店有哪些汽车优惠政策？
     """;
-    
+
     private static final String SYSTEM_VL_PROMPT = """
       你是一个专业的视觉理解模型，实现思考模式和非思考模式的有效融合，通过图像理解、图像生成、图像编辑、图像分析等能力，实现对图像的深度理解。
       你的任务是根据用户的问题，给出相应的回答。
@@ -65,6 +69,24 @@ public class MyAgentConfiguration {
       请始终基于从知识库检索到的信息来回答问题，不要编造信息。
       """;
 
+    private static final String SYSTEM_MCP_SEARCH_PROMPT = """
+      你是一个智能搜索助手，具备强大的互联网搜索能力。
+      你的任务是根据用户的问题，使用互联网搜索工具获取最新、最准确的信息，并给出有帮助的回答。
+      
+      当用户提问时，你应该：
+      1. 分析用户问题，确定需要搜索的关键词
+      2. 使用搜索工具在互联网上搜索相关信息
+      3. 整理搜索结果，提取关键信息
+      4. 用清晰、简洁的语言回答用户问题
+      5. 如果搜索结果不足以回答问题，诚实告知用户
+      
+      注意事项：
+      - 回答要准确、客观，基于搜索结果
+      - 如果涉及时效性信息，注明信息的时间
+      - 对于复杂问题，可以分点回答
+      - 提供信息来源时要清晰
+      """;
+
     @Value("${spring.ai.dashscope.api-key}")
     private String apiKey;
 
@@ -75,10 +97,16 @@ public class MyAgentConfiguration {
     private ModelPerformanceInterceptor modelPerformanceInterceptor;
 
     @Autowired
+    private MyToolsInceptor myToolsInceptor;
+
+    @Autowired
     private VectorSearchTool vectorSearchTool;
 
     @Autowired
     private MilvusVectorStore vectorStore;
+
+    @Autowired(required = false)
+    private SyncMcpToolCallbackProvider mcpToolCallbackProvider;
 
     private ToolCallback accountInfoTool;
     private ToolCallback carBrandTool;
@@ -261,6 +289,57 @@ public class MyAgentConfiguration {
                         AgentTool.getFunctionToolCallback(writerAgent),
                         AgentTool.getFunctionToolCallback(reviewerAgent)
                 )
+                .build();
+    }
+
+    /**
+     * MCP 互联网搜索智能体
+     * 集成 bing-cn-mcp 服务，提供互联网搜索能力
+     */
+    @Bean("mcpSearchAgent")
+    public ReactAgent mcpSearchAgent() {
+        DashScopeApi dashScopeApi = DashScopeApi.builder()
+                .apiKey(apiKey)
+                .build();
+
+        ChatModel chatModel = DashScopeChatModel.builder()
+                .dashScopeApi(dashScopeApi)
+                .defaultOptions(DashScopeChatOptions.builder()
+                        .withModel("qwen3-max")
+                        .withTemperature(0.7)
+                        .withMaxToken(4000)
+                        .build())
+                .build();
+
+        // 如果 MCP 工具提供者可用，添加 MCP 工具
+        if (mcpToolCallbackProvider != null) {
+            ToolCallback[] mcpTools = mcpToolCallbackProvider.getToolCallbacks();
+            if (mcpTools != null && mcpTools.length > 0) {
+                log.info("已加载 {} 个 MCP 工具", mcpTools.length);
+                for (ToolCallback tool : mcpTools) {
+                    log.info("MCP 工具: {}", tool.getToolDefinition().name());
+                }
+                return ReactAgent.builder()
+                        .name("mcpSearchAgent")
+                        .model(chatModel)
+                        .systemPrompt(SYSTEM_MCP_SEARCH_PROMPT)
+                        .interceptors(myToolsInceptor)
+                        .tools(mcpTools)
+                        .saver(new MemorySaver())
+                        .build();
+            } else {
+                log.warn("MCP 工具提供者可用，但未找到任何工具");
+            }
+        } else {
+            log.warn("MCP 工具提供者不可用，mcpSearchAgent 将不具备搜索能力");
+        }
+
+        // 不带 MCP 工具的备用智能体
+        return ReactAgent.builder()
+                .name("mcpSearchAgent")
+                .model(chatModel)
+                .systemPrompt(SYSTEM_MCP_SEARCH_PROMPT)
+                .saver(new MemorySaver())
                 .build();
     }
 
