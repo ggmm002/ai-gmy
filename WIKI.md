@@ -2,7 +2,14 @@
 
 ## 项目概述
 
-AI-GMY 是一个基于 Spring Boot 和 Spring AI Alibaba Agent Framework 构建的智能汽车销售助手系统。该项目集成了阿里云 DashScope 的 AI 模型，为汽车门店提供智能化的客户服务能力，包括文本对话、图片分析、订单处理、RAG（检索增强生成）等功能。
+AI-GMY 是一个基于 Spring Boot 和 Spring AI Alibaba Agent Framework 构建的智能汽车销售助手系统。该项目集成了阿里云 DashScope 的 AI 模型，为汽车门店提供智能化的客户服务能力，包括文本对话、图片分析、订单处理、RAG（检索增强生成）、多智能体协作等功能。
+
+**核心特性**:
+- 🤖 **5个智能体**: 基础对话、视觉理解、人机交互、RAG检索、多智能体协作
+- 🛠️ **5个工具**: 账号查询、品牌查询、下单、车型查询、向量搜索
+- 🔒 **内容安全**: 敏感词过滤、性能监控
+- 📚 **知识库**: 基于 Milvus 的向量检索和 RAG 问答
+- 👥 **多智能体**: 支持智能体间的协作和编排
 
 ## 技术栈
 
@@ -41,7 +48,12 @@ ai-gmy/
 │   │   │       ├── controller/
 │   │   │       │   ├── FirstController.java       # 基础对话和图片分析接口
 │   │   │       │   ├── HitlController.java        # 人机交互接口
+│   │   │       │   ├── MultiController.java       # 多智能体协作接口
 │   │   │       │   └── RAGController.java         # RAG 向量检索接口
+│   │   │       ├── dto/
+│   │   │       │   ├── ArticleRequest.java        # 文章请求DTO
+│   │   │       │   ├── ArticleOutput.java        # 文章输出DTO
+│   │   │       │   └── ReviewOutput.java         # 评审输出DTO
 │   │   │       ├── interceptor/
 │   │   │       │   ├── ContentInterceptor.java    # 内容拦截器（敏感词过滤）
 │   │   │       │   └── ModelPerformanceInterceptor.java  # 性能监控拦截器
@@ -49,7 +61,8 @@ ai-gmy/
 │   │   │           ├── AccountInfoTool.java        # 账号信息查询工具
 │   │   │           ├── CarBrandTool.java           # 汽车品牌查询工具
 │   │   │           ├── PlaceOrderTool.java         # 下单工具
-│   │   │           └── SaleCarsInfoTool.java       # 车型信息查询工具
+│   │   │           ├── SaleCarsInfoTool.java       # 车型信息查询工具
+│   │   │           └── VectorSearchTool.java       # 向量搜索工具
 │   │   └── resources/
 │   │       ├── application.yml                     # 应用配置文件（YAML格式）
 │   │       ├── test.txt                            # 测试文档（用于RAG向量化）
@@ -64,7 +77,7 @@ ai-gmy/
 
 ### 1. 智能体（Agents）
 
-项目包含三个核心智能体，每个智能体都有不同的用途和配置：
+项目包含五个核心智能体，每个智能体都有不同的用途和配置：
 
 #### 1.1 firstAgent（基础对话智能体）
 
@@ -93,6 +106,31 @@ ai-gmy/
   - `saleCarsInfoTool`（车型信息查询）
 - **特性**: 集成了 `HumanInTheLoopHook`，当调用 `placeOrderTool` 时会触发人工审批流程
 
+#### 1.4 ragAgent（检索增强生成智能体）
+
+- **模型**: `qwen-max`
+- **功能**: 基于向量知识库的智能问答
+- **工具**: 
+  - `vectorSearchTool`（向量搜索工具）
+- **特性**: 
+  - 集成了 `RetrievalAugmentationAdvisor`，自动从向量数据库中检索相关信息
+  - 相似度阈值设置为 0.50
+  - 温度参数设置为 0.3，确保回答更加准确
+  - 最大token数设置为 2000
+- **系统提示词**: 定义为基于知识库的智能助手，优先使用知识库中的信息回答问题
+
+#### 1.5 multiAgent（多智能体协作智能体）
+
+- **模型**: `qwen3-max`
+- **功能**: 协调多个子智能体完成复杂任务
+- **子智能体**:
+  - `writerAgent`（写作智能体）: 根据结构化输入（topic、wordCount、style）创作文章，返回结构化输出（title、content、characterCount）
+  - `reviewerAgent`（评审智能体）: 对文章进行评审，返回评审意见（comment、approved、suggestions）
+- **特性**: 
+  - 使用 `AgentTool.getFunctionToolCallback()` 将子智能体作为工具集成
+  - 支持类型化的输入输出（使用 DTO 类）
+  - 实现写作和评审的自动化流程
+
 ### 2. 工具（Tools）
 
 #### 2.1 AccountInfoTool（账号信息查询工具）
@@ -119,6 +157,16 @@ ai-gmy/
 - **功能**: 查询门店销售的车型详细信息
 - **参数**: 可选的车型名称
 - **返回信息**: 车型名称、价格、颜色、库存等
+
+#### 2.5 VectorSearchTool（向量搜索工具）
+
+- **功能**: 从向量数据库中检索与查询内容相关的文档
+- **参数**: 用户查询的问题或关键词（String）
+- **特性**: 
+  - 默认返回 topK = 5 个最相似的文档
+  - 自动处理空查询情况
+  - 将多个文档内容合并为字符串返回（使用分隔符 `\n\n---\n\n`）
+- **返回**: 相关文档内容（字符串格式），如果未找到则返回提示信息
 
 ### 3. 拦截器（Interceptors）
 
@@ -206,6 +254,40 @@ ai-gmy/
 - **实现逻辑**:
   1. 使用查询文本在 Milvus 向量存储中执行相似度搜索
   2. 返回 topK 个最相似的文档（topK = query.length()）
+
+##### GET `/rag/chat`
+- **功能**: 使用 RAG Agent 进行智能问答
+- **参数**: 
+  - `question` (String): 用户问题
+- **返回**: AI 的回答（基于向量知识库检索）
+- **特性**: 
+  - Agent 会自动从向量知识库中检索相关信息
+  - 结合检索到的信息生成回答
+  - 如果知识库中没有相关信息，会诚实告知用户
+
+##### GET `/rag/chatWithContext`
+- **功能**: 使用 RAG Agent 进行带会话上下文的问答
+- **参数**: 
+  - `question` (String): 用户问题
+  - `userId` (Long): 用户ID（用于会话隔离）
+- **返回**: AI 的回答（基于向量知识库检索）
+- **特性**: 
+  - 支持多轮对话，每次对话都会保留上下文
+  - 使用 `threadId` 实现会话隔离
+  - 每个用户通过 `userId` 维护独立的对话上下文
+
+#### 4.4 MultiController
+
+##### GET `/multi/chat`
+- **功能**: 多智能体协作对话接口
+- **参数**: 
+  - `question` (String): 用户问题（应包含文章主题、字数、风格等信息）
+  - `userId` (Long): 用户ID
+- **返回**: 多智能体协作的结果（包含写作和评审结果）
+- **特性**: 
+  - 协调 `writerAgent` 和 `reviewerAgent` 完成写作和评审流程
+  - 支持类型化的输入输出
+  - 使用 `threadId` 实现会话隔离
 
 ## 配置说明
 
@@ -310,6 +392,30 @@ curl "http://localhost:7080/rag/vectorSearch?query=SpringAIAlibaba如何创建�
 
 此接口会根据查询文本在向量数据库中进行相似度搜索，返回相关文档。
 
+#### 6.3 RAG 智能问答
+
+```bash
+curl "http://localhost:7080/rag/chat?question=SpringAIAlibaba如何创建项目"
+```
+
+此接口会使用 RAG Agent 自动从向量知识库中检索相关信息并生成回答。
+
+#### 6.4 RAG 带上下文的问答
+
+```bash
+curl "http://localhost:7080/rag/chatWithContext?question=SpringAIAlibaba如何创建项目&userId=1"
+```
+
+此接口支持多轮对话，每次对话都会保留上下文。
+
+### 7. 多智能体协作
+
+```bash
+curl "http://localhost:7080/multi/chat?question=请写一篇关于人工智能的1000字文章，风格要专业&userId=1"
+```
+
+此接口会协调写作智能体和评审智能体，完成文章的创作和评审流程。
+
 ## 数据模型
 
 ### 用户数据（AccountInfoTool）
@@ -357,6 +463,32 @@ curl "http://localhost:7080/rag/vectorSearch?query=SpringAIAlibaba如何创建�
 - 库存: 1
 ```
 
+### DTO 数据模型
+
+#### ArticleRequest（文章请求）
+
+```java
+- topic: String - 文章主题
+- wordCount: int - 文章字数
+- style: String - 文章风格
+```
+
+#### ArticleOutput（文章输出）
+
+```java
+- title: String - 文章标题
+- content: String - 文章内容
+- characterCount: int - 字符数
+```
+
+#### ReviewOutput（评审输出）
+
+```java
+- comment: String - 评审意见
+- approved: boolean - 是否通过
+- suggestions: List<String> - 建议列表
+```
+
 ## 核心特性
 
 ### 1. 会话管理
@@ -394,6 +526,15 @@ curl "http://localhost:7080/rag/vectorSearch?query=SpringAIAlibaba如何创建�
 - 使用 `TokenTextSplitter` 将长文档分割成小块
 - 使用 DashScope 的 `text-embedding-v4` 模型进行文本向量化
 - 支持批量添加文档到向量存储
+- 集成 `RetrievalAugmentationAdvisor` 实现自动检索增强
+- 支持通过 RAG Agent 进行智能问答
+
+### 7. 多智能体协作
+
+- 支持将多个智能体作为工具集成到主智能体中
+- 实现复杂的多步骤任务流程（如写作+评审）
+- 支持类型化的输入输出（使用 DTO 类）
+- 通过 `AgentTool.getFunctionToolCallback()` 实现智能体间的调用
 
 ## 开发规范
 
@@ -439,11 +580,18 @@ curl "http://localhost:7080/rag/vectorSearch?query=SpringAIAlibaba如何创建�
 
 ### 6. RAG 功能增强
 
-- 集成 RAG 功能到智能体中，实现基于知识库的回答
+- ✅ 已集成 RAG 功能到智能体中（ragAgent），实现基于知识库的回答
 - 支持多种文档格式（PDF、Word、Markdown 等）
 - 优化文档分块策略，提高检索精度
 - 实现查询结果的相关性排序和过滤
-- 支持多轮对话中的上下文检索
+- ✅ 已支持多轮对话中的上下文检索（通过 `/rag/chatWithContext` 接口）
+
+### 7. 多智能体协作扩展
+
+- ✅ 已实现基础的多智能体协作（multiAgent）
+- 支持更多类型的子智能体（如翻译、摘要等）
+- 实现智能体间的条件分支和循环逻辑
+- 支持智能体的动态组合和编排
 
 ## 常见问题
 
@@ -479,7 +627,16 @@ A:
 1. **准备 Milvus 服务**: 确保 Milvus 服务已启动并可通过配置的地址访问
 2. **添加文档**: 调用 `/rag/vectorAdd` 接口将文档添加到向量数据库
 3. **执行搜索**: 调用 `/rag/vectorSearch` 接口进行相似度搜索
-4. **自定义文档**: 修改 `RAGController.vectorAdd()` 方法中的文件路径，或扩展支持更多文档格式
+4. **智能问答**: 调用 `/rag/chat` 或 `/rag/chatWithContext` 接口使用 RAG Agent 进行智能问答
+5. **自定义文档**: 修改 `RAGController.vectorAdd()` 方法中的文件路径，或扩展支持更多文档格式
+
+### Q: 如何使用多智能体协作功能？
+
+A: 
+1. 调用 `/multi/chat` 接口，传入包含任务描述的问题
+2. multiAgent 会自动协调 writerAgent 和 reviewerAgent 完成写作和评审流程
+3. 返回结果包含完整的文章内容和评审意见
+4. 可以通过修改 `MyAgentConfiguration.multiAgent()` 方法添加更多子智能体
 
 ### Q: 如何配置 Milvus 连接？
 
@@ -490,18 +647,44 @@ A:
 
 ### Q: 如何调整向量检索的 topK 值？
 
-A: 修改 `RAGController.vectorSearch()` 方法中的 `topK()` 参数。当前实现为 `query.length()`，可以根据实际需求调整。
+A: 
+- **RAGController.vectorSearch()**: 修改方法中的 `topK()` 参数。当前实现为 `query.length()`，可以根据实际需求调整。
+- **VectorSearchTool**: 修改 `DEFAULT_TOP_K` 常量（默认值为 5）
+- **ragAgent**: 修改 `RetrievalAugmentationAdvisor` 中的 `similarityThreshold` 参数（当前为 0.50）
+
+## 更新日志
+
+### 2025/12/1
+- 新增 `multiAgent` 多智能体协作功能
+- 新增 `MultiController` 控制器
+- 新增 `VectorSearchTool` 向量搜索工具
+- 新增 `ragAgent` 检索增强生成智能体
+- 新增 RAG 相关的 API 接口（`/rag/chat`, `/rag/chatWithContext`）
+- 新增 DTO 类（`ArticleRequest`, `ArticleOutput`, `ReviewOutput`）
+
+### 2025/11/23
+- 新增 `ContentInterceptor` 内容拦截器
+- 新增 `ModelPerformanceInterceptor` 性能监控拦截器
+- 新增 `HitlController` 人机交互控制器
+- 新增 `hitlAgent` 人机交互智能体
+
+### 2025/11/22
+- 项目初始版本
+- 实现基础对话功能
+- 实现图片分析功能
+- 实现 RAG 向量检索功能
 
 ## 版本信息
 
 - **项目版本**: 0.0.1-SNAPSHOT
 - **Spring Boot**: 3.5.7
 - **Spring AI Alibaba**: 1.1.0.0-M5
+- **Spring AI**: 1.1.0-M4
 - **Java**: 17
 
 ## 作者
 
-- guomaoyang (2025/11/22)
+- guomaoyang (2025/11/22 - 2025/12/1)
 
 ## 许可证
 
