@@ -17,10 +17,7 @@ spring:
         request-timeout: 20s
         initialized: false
         stdio:
-          root-change-notification: true
           servers-configuration: classpath:mcp-servers.json
-        toolcallback:
-          enabled: true
     dashscope:
       embedding:
         options:
@@ -42,3 +39,16 @@ spring:
         embeddingDimension: 1536 # default: 1536
         indexType: IVF_FLAT # default: IVF_FLAT
         metricType: COSINE # default: COSINE
+
+# logback配置
+logging:
+  file:
+    name: application.log
+    path: logs/
+    max-history: 30
+    max-size: 100MB
+    file-name-pattern: application-%d{yyyy-MM-dd}.log
+    append: true
+    level: DEBUG
+    pattern: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+    encoding: UTF-8

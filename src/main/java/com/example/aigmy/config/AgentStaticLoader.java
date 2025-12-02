@@ -50,12 +50,12 @@ class AgentStaticLoader implements AgentLoader {
 
 	private final Map<String, BaseAgent> agents = new ConcurrentHashMap<>();
 
-	public AgentStaticLoader(BaseAgent hitlAgent) {
+	public AgentStaticLoader(BaseAgent mcpSearchAgent) {
 
-		GraphRepresentation representation = hitlAgent.getAndCompileGraph().stateGraph.getGraph(GraphRepresentation.Type.PLANTUML);
+		GraphRepresentation representation = mcpSearchAgent.getAndCompileGraph().stateGraph.getGraph(GraphRepresentation.Type.PLANTUML);
 		System.out.println(representation.content());
 
-		this.agents.put("research_agent", hitlAgent);
+		this.agents.put("research_agent", mcpSearchAgent);
 	}
 
 	@Override

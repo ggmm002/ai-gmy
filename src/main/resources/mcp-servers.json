@@ -1,10 +1,11 @@
 {
   "mcpServers": {
-    "bingcn": {
-      "command": "npx",
+    "12306-mcp": {
       "args": [
-        "bing-cn-mcp"
-      ]
+        "-y",
+        "12306-mcp"
+      ],
+      "command": "npx"
     }
   }
 }

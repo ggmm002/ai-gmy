@@ -1,0 +1,55 @@
+2025-12-02T14:00:17.650+08:00  INFO 63293 --- [ai-gmy] [main] com.example.aigmy.AiGmyApplication       : Starting AiGmyApplication using Java 17.0.6 with PID 63293 (/Users/guomaoyang/IdeaProjects/ai-gmy/target/classes started by guomaoyang in /Users/guomaoyang/IdeaProjects/ai-gmy)
+2025-12-02T14:00:17.652+08:00  INFO 63293 --- [ai-gmy] [main] com.example.aigmy.AiGmyApplication       : No active profile set, falling back to 1 default profile: "default"
+2025-12-02T14:00:18.125+08:00  WARN 63293 --- [ai-gmy] [main] trationDelegate$BeanPostProcessorChecker : Bean 'org.springframework.ai.mcp.client.common.autoconfigure.annotations.McpClientAnnotationScannerAutoConfiguration' of type [org.springframework.ai.mcp.client.common.autoconfigure.annotations.McpClientAnnotationScannerAutoConfiguration] is not eligible for getting processed by all BeanPostProcessors (for example: not eligible for auto-proxying). Is this bean getting eagerly injected/applied to a currently created BeanPostProcessor [clientAnnotatedMethodBeanPostProcessor]? Check the corresponding BeanPostProcessor declaration and its dependencies/advisors. If this bean does not have to be post-processed, declare it with ROLE_INFRASTRUCTURE.
+2025-12-02T14:00:18.126+08:00  WARN 63293 --- [ai-gmy] [main] trationDelegate$BeanPostProcessorChecker : Bean 'clientAnnotatedBeans' of type [org.springframework.ai.mcp.client.common.autoconfigure.annotations.McpClientAnnotationScannerAutoConfiguration$ClientMcpAnnotatedBeans] is not eligible for getting processed by all BeanPostProcessors (for example: not eligible for auto-proxying). Is this bean getting eagerly injected/applied to a currently created BeanPostProcessor [clientAnnotatedMethodBeanPostProcessor]? Check the corresponding BeanPostProcessor declaration and its dependencies/advisors. If this bean does not have to be post-processed, declare it with ROLE_INFRASTRUCTURE.
+2025-12-02T14:00:18.132+08:00  WARN 63293 --- [ai-gmy] [main] trationDelegate$BeanPostProcessorChecker : Bean 'spring.ai.mcp.client.annotation-scanner-org.springframework.ai.mcp.client.common.autoconfigure.annotations.McpClientAnnotationScannerProperties' of type [org.springframework.ai.mcp.client.common.autoconfigure.annotations.McpClientAnnotationScannerProperties] is not eligible for getting processed by all BeanPostProcessors (for example: not eligible for auto-proxying). Is this bean getting eagerly injected/applied to a currently created BeanPostProcessor [clientAnnotatedMethodBeanPostProcessor]? Check the corresponding BeanPostProcessor declaration and its dependencies/advisors. If this bean does not have to be post-processed, declare it with ROLE_INFRASTRUCTURE.
+2025-12-02T14:00:18.244+08:00  INFO 63293 --- [ai-gmy] [main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port 7080 (http)
+2025-12-02T14:00:18.253+08:00  INFO 63293 --- [ai-gmy] [main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2025-12-02T14:00:18.253+08:00  INFO 63293 --- [ai-gmy] [main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/10.1.48]
+2025-12-02T14:00:18.280+08:00  INFO 63293 --- [ai-gmy] [main] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
+2025-12-02T14:00:18.280+08:00  INFO 63293 --- [ai-gmy] [main] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 608 ms
+2025-12-02T14:00:18.996+08:00  WARN 63293 --- [ai-gmy] [main] o.s.m.p.s.SyncMcpSamplingProvider        : No sampling methods found
+2025-12-02T14:00:18.997+08:00  WARN 63293 --- [ai-gmy] [main] o.s.m.p.e.SyncMcpElicitationProvider     : No elicitation methods found
+2025-12-02T14:00:19.164+08:00  INFO 63293 --- [ai-gmy] [boundedElastic-1] i.m.c.transport.StdioClientTransport     : MCP server starting.
+2025-12-02T14:00:19.174+08:00  INFO 63293 --- [ai-gmy] [boundedElastic-1] i.m.c.transport.StdioClientTransport     : MCP server started
+2025-12-02T14:00:21.223+08:00  INFO 63293 --- [ai-gmy] [pool-6-thread-1] i.m.c.transport.StdioClientTransport     : STDERR Message received: 12306 MCP Server running on stdio @Joooook
+2025-12-02T14:00:21.242+08:00  INFO 63293 --- [ai-gmy] [pool-3-thread-1] i.m.client.LifecycleInitializer          : Server response with Protocol: 2024-11-05, Capabilities: ServerCapabilities[completions=CompletionCapabilities[], experimental=null, logging=null, prompts=null, resources=ResourceCapabilities[subscribe=null, listChanged=true], tools=ToolCapabilities[listChanged=true]], Info: Implementation[name=12306-mcp, title=null, version=0.3.7] and Instructions null
+2025-12-02T14:00:21.268+08:00  INFO 63293 --- [ai-gmy] [main] c.e.aigmy.config.MyAgentConfiguration    : 已加载 8 个 MCP 工具
+2025-12-02T14:00:21.268+08:00  INFO 63293 --- [ai-gmy] [main] c.e.aigmy.config.MyAgentConfiguration    : MCP 工具: get_current_date
+2025-12-02T14:00:21.268+08:00  INFO 63293 --- [ai-gmy] [main] c.e.aigmy.config.MyAgentConfiguration    : MCP 工具: get_stations_code_in_city
+2025-12-02T14:00:21.268+08:00  INFO 63293 --- [ai-gmy] [main] c.e.aigmy.config.MyAgentConfiguration    : MCP 工具: get_station_code_of_citys
+2025-12-02T14:00:21.269+08:00  INFO 63293 --- [ai-gmy] [main] c.e.aigmy.config.MyAgentConfiguration    : MCP 工具: get_station_code_by_names
+2025-12-02T14:00:21.269+08:00  INFO 63293 --- [ai-gmy] [main] c.e.aigmy.config.MyAgentConfiguration    : MCP 工具: get_station_by_telecode
+2025-12-02T14:00:21.269+08:00  INFO 63293 --- [ai-gmy] [main] c.e.aigmy.config.MyAgentConfiguration    : MCP 工具: get_tickets
+2025-12-02T14:00:21.269+08:00  INFO 63293 --- [ai-gmy] [main] c.e.aigmy.config.MyAgentConfiguration    : MCP 工具: get_interline_tickets
+2025-12-02T14:00:21.270+08:00  INFO 63293 --- [ai-gmy] [main] c.e.aigmy.config.MyAgentConfiguration    : MCP 工具: get_train_route_stations
+2025-12-02T14:00:21.326+08:00  INFO 63293 --- [ai-gmy] [main] c.a.c.a.a.s.controller.AgentController   : AgentController initialized with 1 dynamic agents: [research_agent]
+2025-12-02T14:00:21.346+08:00  INFO 63293 --- [ai-gmy] [main] o.s.b.a.w.s.WelcomePageHandlerMapping    : Adding welcome page: class path resource [static/index.html]
+2025-12-02T14:00:21.543+08:00  INFO 63293 --- [ai-gmy] [main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port 7080 (http) with context path '/'
+2025-12-02T14:00:21.549+08:00  INFO 63293 --- [ai-gmy] [main] com.example.aigmy.AiGmyApplication       : Started AiGmyApplication in 4.138 seconds (process running for 4.392)
+2025-12-02T14:00:31.185+08:00  INFO 63293 --- [ai-gmy] [http-nio-7080-exec-2] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2025-12-02T14:00:31.185+08:00  INFO 63293 --- [ai-gmy] [http-nio-7080-exec-2] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
+2025-12-02T14:00:31.186+08:00  INFO 63293 --- [ai-gmy] [http-nio-7080-exec-2] o.s.web.servlet.DispatcherServlet        : Completed initialization in 1 ms
+2025-12-02T14:00:31.210+08:00  INFO 63293 --- [ai-gmy] [http-nio-7080-exec-2] c.e.a.controller.McpSearchController     : 收到 MCP 搜索请求，问题: 查询今天杭州到上海的高铁信息
+2025-12-02T14:00:31.211+08:00  INFO 63293 --- [ai-gmy] [http-nio-7080-exec-2] c.e.a.controller.McpSearchController     : 开始执行 Agent stream，threadId: Optional[1]
+2025-12-02T14:00:31.242+08:00  INFO 63293 --- [ai-gmy] [http-nio-7080-exec-2] c.e.a.controller.McpSearchController     : RunnableConfig 元数据: {"user_id":"1"}
+2025-12-02T14:00:31.243+08:00  INFO 63293 --- [ai-gmy] [http-nio-7080-exec-2] c.e.a.controller.McpSearchController     : 使用 UserMessage 启动 stream，内容: 查询今天杭州到上海的高铁信息
+2025-12-02T14:00:31.271+08:00  INFO 63293 --- [ai-gmy] [http-nio-7080-exec-2] c.e.a.controller.McpSearchController     : Agent stream 已订阅
+2025-12-02T14:00:31.272+08:00  INFO 63293 --- [ai-gmy] [http-nio-7080-exec-2] c.e.a.controller.McpSearchController     : 收到 NodeOutput，类型: NodeOutput, node: __START__, agent: mcpSearchAgent
+2025-12-02T14:00:31.273+08:00  WARN 63293 --- [ai-gmy] [http-nio-7080-exec-2] c.e.a.controller.McpSearchController     : AgentResponse 为 null，返回空响应
+2025-12-02T14:00:32.828+08:00  INFO 63293 --- [ai-gmy] [boundedElastic-1] c.e.a.controller.McpSearchController     : 收到 NodeOutput，类型: StreamingOutput, node: model, agent: mcpSearchAgent
+2025-12-02T14:00:32.877+08:00  INFO 63293 --- [ai-gmy] [boundedElastic-1] c.e.a.controller.McpSearchController     : 收到 NodeOutput，类型: StreamingOutput, node: model, agent: mcpSearchAgent
+2025-12-02T14:00:32.948+08:00  INFO 63293 --- [ai-gmy] [boundedElastic-1] c.e.a.controller.McpSearchController     : 收到 NodeOutput，类型: StreamingOutput, node: model, agent: mcpSearchAgent
+2025-12-02T14:00:33.030+08:00  INFO 63293 --- [ai-gmy] [boundedElastic-1] c.e.a.controller.McpSearchController     : 收到 NodeOutput，类型: StreamingOutput, node: model, agent: mcpSearchAgent
+2025-12-02T14:00:33.224+08:00  INFO 63293 --- [ai-gmy] [boundedElastic-1] c.e.a.controller.McpSearchController     : 收到 NodeOutput，类型: StreamingOutput, node: model, agent: mcpSearchAgent
+2025-12-02T14:00:33.399+08:00  INFO 63293 --- [ai-gmy] [boundedElastic-1] c.e.a.controller.McpSearchController     : 收到 NodeOutput，类型: StreamingOutput, node: model, agent: mcpSearchAgent
+2025-12-02T14:00:33.637+08:00  INFO 63293 --- [ai-gmy] [boundedElastic-1] c.e.a.controller.McpSearchController     : 收到 NodeOutput，类型: StreamingOutput, node: model, agent: mcpSearchAgent
+2025-12-02T14:00:33.843+08:00  INFO 63293 --- [ai-gmy] [boundedElastic-1] c.e.a.controller.McpSearchController     : 收到 NodeOutput，类型: StreamingOutput, node: model, agent: mcpSearchAgent
+2025-12-02T14:00:35.941+08:00  INFO 63293 --- [ai-gmy] [boundedElastic-1] c.e.a.controller.McpSearchController     : 收到 NodeOutput，类型: StreamingOutput, node: model, agent: mcpSearchAgent
+2025-12-02T14:00:35.941+08:00  INFO 63293 --- [ai-gmy] [boundedElastic-1] c.e.a.controller.McpSearchController     : 检测到工具调用，工具数量: 3
+2025-12-02T14:00:35.942+08:00  INFO 63293 --- [ai-gmy] [boundedElastic-1] c.e.a.controller.McpSearchController     : 工具调用详情: ToolCall[id=call_d4b09ea3e66a4b09b2e5fde8, type=function, name=get_current_date, arguments={}]
+2025-12-02T14:00:35.944+08:00  INFO 63293 --- [ai-gmy] [boundedElastic-1] c.e.a.controller.McpSearchController     : 工具调用详情: ToolCall[id=call_4d0c6b5727634e25bae917dd, type=function, name=get_stations_code_in_city, arguments={"city": "杭州"}]
+2025-12-02T14:00:35.944+08:00  INFO 63293 --- [ai-gmy] [boundedElastic-1] c.e.a.controller.McpSearchController     : 工具调用详情: ToolCall[id=call_a554dbb3abd34bd0b54b575f, type=function, name=get_stations_code_in_city, arguments={"city": "上海"}]
+2025-12-02T14:00:35.953+08:00  INFO 63293 --- [ai-gmy] [boundedElastic-1] c.e.a.controller.McpSearchController     : 收到 NodeOutput，类型: NodeOutput, node: __END__, agent: mcpSearchAgent
+2025-12-02T14:00:35.953+08:00  WARN 63293 --- [ai-gmy] [boundedElastic-1] c.e.a.controller.McpSearchController     : AgentResponse 为 null，返回空响应
+2025-12-02T14:00:35.954+08:00  INFO 63293 --- [ai-gmy] [boundedElastic-1] c.e.a.controller.McpSearchController     : Agent stream 执行完成
