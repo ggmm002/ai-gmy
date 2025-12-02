@@ -138,6 +138,10 @@ public class McpSearchController {
 
         // Convert Flux<NodeOutput> to Flux<ServerSentEvent<String>>
         // 添加超时处理，防止stream无限期卡住（5分钟超时）
+        // 问题分析：stream模式下，工具调用被检测到但不会自动执行，stream会直接结束
+        // 解决方案：检测到工具调用后，如果收到__END__节点，使用invoke继续执行工具
+        final java.util.concurrent.atomic.AtomicBoolean hasToolCalls = new java.util.concurrent.atomic.AtomicBoolean(false);
+        
         return agentStream
                 .timeout(Duration.ofMinutes(5))
                 .doOnSubscribe(subscription -> {
@@ -148,85 +152,92 @@ public class McpSearchController {
                             nodeOutput.getClass().getSimpleName(), 
                             nodeOutput.node(), 
                             nodeOutput.agent());
+                    // 检测工具调用
+                    if (nodeOutput instanceof StreamingOutput<?> streamingOutput) {
+                        Message msg = streamingOutput.message();
+                        if (msg instanceof AssistantMessage assistantMessage && assistantMessage.hasToolCalls()) {
+                            hasToolCalls.set(true);
+                            log.warn("检测到工具调用，标记需要继续执行");
+                        }
+                    }
                 })
                 .doOnCancel(() -> {
                     log.warn("Agent stream 被取消");
                 })
-                .map(nodeOutput -> {
-                    String node = nodeOutput.node();
-                    String agentName = nodeOutput.agent();
-                    Usage tokenUsage = nodeOutput.tokenUsage();
-
-                    log.debug("处理 NodeOutput - node: {}, agent: {}, tokenUsage: {}", 
-                            node, agentName, JSON.toJSONString(tokenUsage));
-
-                    // For streaming, we can use the message content as chunk
-                    StringBuilder chunkBuilder = new StringBuilder();
-                    AgentRunResponse agentResponse = null;
-                    if (nodeOutput instanceof StreamingOutput<?> streamingOutput) {
-                        Message message = streamingOutput.message();
-                        if (message == null) { // no update, typically output responses from nodes that does not produce messages
-                            log.debug("StreamingOutput 消息为空，返回空响应");
-                            return ServerSentEvent.<String>builder()
-                                    .data("{}")
-                                    .build();
-                        }
-                        if (message instanceof AssistantMessage assistantMessage) {
-                            if (assistantMessage.hasToolCalls()) {
-                                log.info("检测到工具调用，工具数量: {}", assistantMessage.getToolCalls().size());
-                                assistantMessage.getToolCalls().forEach(toolCall -> {
-                                    log.info("工具调用详情: {}", toolCall);
-                                });
-                                agentResponse = new AgentRunResponse(node, agentName, assistantMessage, tokenUsage, "");
+                .concatMap(nodeOutput -> {
+                    // 如果收到__END__节点且之前检测到工具调用，使用invoke继续执行
+                    if ("__END__".equals(nodeOutput.node()) && hasToolCalls.get()) {
+                        log.warn("检测到工具调用但stream已结束，使用invoke继续执行工具");
+                        // 先返回__END__节点
+                        Flux<ServerSentEvent<String>> endEvent = Flux.just(convertToSSE(nodeOutput));
+                        // 然后使用invoke继续执行
+                        Flux<ServerSentEvent<String>> invokeResult = Flux.defer(() -> {
+                            try {
+                                log.info("使用invoke继续执行，threadId: {}", runnableConfig.threadId());
+                                Optional<OverAllState> result = agent.invoke("", runnableConfig);
+                                if (result.isPresent()) {
+                                    log.info("invoke执行完成，结果: {}", JSON.toJSONString(result.get()));
+                                    // 将invoke的结果转换为SSE事件
+                                    OverAllState state = result.get();
+                                    String resultText = state.toString();
+                                    // 直接构造JSON字符串，避免构造函数歧义
+                                    try {
+                                        String jsonData = String.format(
+                                                "{\"node\":\"__INVOKE_RESULT\",\"agent\":\"%s\",\"text\":%s}",
+                                                agent.getClass().getSimpleName(),
+                                                mapper.writeValueAsString(resultText)
+                                        );
+                                        return Flux.just(ServerSentEvent.<String>builder()
+                                                .data(jsonData)
+                                                .build());
+                                    } catch (Exception e) {
+                                        log.error("序列化invoke结果失败", e);
+                                        return Flux.empty();
+                                    }
+                                }
+                                return Flux.empty();
+                            } catch (Exception e) {
+                                log.error("invoke继续执行失败", e);
+                                return Flux.just(ServerSentEvent.<String>builder()
+                                        .event("error")
+                                        .data("{\"error\":\"invoke执行失败: " + e.getMessage() + "\"}")
+                                        .build());
                             }
-                            else {
-                                log.debug("AssistantMessage 无工具调用，文本内容: {}", assistantMessage.getText());
-//						chunkBuilder.append(assistantMessage.getText());
-                                agentResponse = new AgentRunResponse(node, agentName, assistantMessage, tokenUsage, assistantMessage.getText());
-                            }
-                        }
-                        else {
-                            log.debug("StreamingOutput 消息类型: {}", message.getClass().getSimpleName());
-                            agentResponse = new AgentRunResponse(node, agentName, message, tokenUsage, "");
-                        }
+                        });
+                        return endEvent.concatWith(invokeResult);
                     }
-                    else if (nodeOutput instanceof InterruptionMetadata interruptionMetadata) {
-                        log.info("检测到 InterruptionMetadata，需要人工反馈");
-                        log.info("InterruptionMetadata 详情: {}", JSON.toJSONString(interruptionMetadata));
-                        // Use the specialized method to convert InterruptionMetadata to ToolRequestMessageDTO
-                        ToolRequestConfirmMessageDTO toolRequestMessage = MessageDTO.MessageDTOFactory.fromInterruptionMetadata(interruptionMetadata);
-                        agentResponse = new AgentRunResponse(node, agentName, toolRequestMessage, tokenUsage, "");
-                    }
-                    else {
-                        log.debug("其他类型的 NodeOutput: {}", nodeOutput.getClass().getSimpleName());
-                        // Handle other NodeOutput types if necessary
-//					agentResponse = new AgentRunResponse(node, agentName, null, tokenUsage, "");
-                    }
-
-
-                    // Serialize to JSON string
-                    try {
-                        if (agentResponse != null) {
-                            String jsonData = mapper.writeValueAsString(agentResponse);
-                            log.debug("序列化 AgentRunResponse 成功，数据长度: {}", jsonData.length());
-                            return ServerSentEvent.<String>builder()
-                                    .data(jsonData)
-                                    .build();
-                        }
-                        else {
-                            log.warn("AgentResponse 为 null，返回空响应");
-                        }
-                    }
-                    catch (Exception e) {
-                        log.error("Failed to serialize AgentRunResponse to JSON", e);
-                        return ServerSentEvent.<String>builder()
-                                .data("{\"error\":\"Failed to serialize response\"}")
-                                .build();
-                    }
-                    return ServerSentEvent.<String>builder()
-                            .data("{}")
-                            .build();
+                    // 正常情况，直接转换
+                    return Flux.just(convertToSSE(nodeOutput));
                 })
+                .switchIfEmpty(Flux.defer(() -> {
+                    // 如果stream为空，也检查是否需要invoke
+                    if (hasToolCalls.get()) {
+                        log.warn("Stream为空但检测到工具调用，使用invoke执行");
+                        try {
+                            Optional<OverAllState> result = agent.invoke("", runnableConfig);
+                            if (result.isPresent()) {
+                                String resultText = result.get().toString();
+                                // 直接构造JSON字符串，避免构造函数歧义
+                                try {
+                                    String jsonData = String.format(
+                                            "{\"node\":\"__INVOKE_RESULT\",\"agent\":\"%s\",\"text\":%s}",
+                                            agent.getClass().getSimpleName(),
+                                            mapper.writeValueAsString(resultText)
+                                    );
+                                    return Flux.just(ServerSentEvent.<String>builder()
+                                            .data(jsonData)
+                                            .build());
+                                } catch (Exception e) {
+                                    log.error("序列化invoke结果失败", e);
+                                    return Flux.empty();
+                                }
+                            }
+                        } catch (Exception e) {
+                            log.error("invoke执行失败", e);
+                        }
+                    }
+                    return Flux.empty();
+                }))
                 .doOnComplete(() -> {
                     log.info("Agent stream 执行完成");
                 })
@@ -270,5 +281,88 @@ public class McpSearchController {
                         );
                     }
                 });
+    }
+    
+    /**
+     * 将NodeOutput转换为ServerSentEvent
+     */
+    private ServerSentEvent<String> convertToSSE(NodeOutput nodeOutput) {
+        String node = nodeOutput.node();
+        String agentName = nodeOutput.agent();
+        Usage tokenUsage = nodeOutput.tokenUsage();
+
+        log.debug("处理 NodeOutput - node: {}, agent: {}, tokenUsage: {}", 
+                node, agentName, JSON.toJSONString(tokenUsage));
+
+        AgentRunResponse agentResponse = null;
+        if (nodeOutput instanceof StreamingOutput<?> streamingOutput) {
+            Message message = streamingOutput.message();
+            if (message == null) {
+                log.debug("StreamingOutput 消息为空，返回空响应");
+                return ServerSentEvent.<String>builder()
+                        .data("{}")
+                        .build();
+            }
+            if (message instanceof AssistantMessage assistantMessage) {
+                if (assistantMessage.hasToolCalls()) {
+                    log.info("检测到工具调用，工具数量: {}", assistantMessage.getToolCalls().size());
+                    assistantMessage.getToolCalls().forEach(toolCall -> {
+                        log.info("工具调用详情: {}", toolCall);
+                    });
+                    agentResponse = new AgentRunResponse(node, agentName, assistantMessage, tokenUsage, "");
+                }
+                else {
+                    log.debug("AssistantMessage 无工具调用，文本内容: {}", assistantMessage.getText());
+                    agentResponse = new AgentRunResponse(node, agentName, assistantMessage, tokenUsage, assistantMessage.getText());
+                }
+            }
+            else {
+                log.debug("StreamingOutput 消息类型: {}", message.getClass().getSimpleName());
+                agentResponse = new AgentRunResponse(node, agentName, message, tokenUsage, "");
+            }
+        }
+        else if (nodeOutput instanceof InterruptionMetadata interruptionMetadata) {
+            log.info("检测到 InterruptionMetadata，需要人工反馈");
+            log.info("InterruptionMetadata 详情: {}", JSON.toJSONString(interruptionMetadata));
+            ToolRequestConfirmMessageDTO toolRequestMessage = MessageDTO.MessageDTOFactory.fromInterruptionMetadata(interruptionMetadata);
+            agentResponse = new AgentRunResponse(node, agentName, toolRequestMessage, tokenUsage, "");
+        }
+        else {
+            log.debug("其他类型的 NodeOutput: {}, node: {}", 
+                    nodeOutput.getClass().getSimpleName(), node);
+            if ("__END__".equals(node)) {
+                log.info("检测到 __END__ 节点，stream 结束");
+                agentResponse = new AgentRunResponse(node, agentName, (Message) null, tokenUsage, "");
+            }
+            else if ("__START__".equals(node)) {
+                // __START__节点不需要响应
+                return ServerSentEvent.<String>builder()
+                        .data("{}")
+                        .build();
+            }
+        }
+
+        // Serialize to JSON string
+        try {
+            if (agentResponse != null) {
+                String jsonData = mapper.writeValueAsString(agentResponse);
+                log.debug("序列化 AgentRunResponse 成功，数据长度: {}", jsonData.length());
+                return ServerSentEvent.<String>builder()
+                        .data(jsonData)
+                        .build();
+            }
+            else {
+                log.warn("AgentResponse 为 null，返回空响应");
+            }
+        }
+        catch (Exception e) {
+            log.error("Failed to serialize AgentRunResponse to JSON", e);
+            return ServerSentEvent.<String>builder()
+                    .data("{\"error\":\"Failed to serialize response\"}")
+                    .build();
+        }
+        return ServerSentEvent.<String>builder()
+                .data("{}")
+                .build();
     }
 }

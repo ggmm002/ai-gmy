@@ -59,7 +59,10 @@
 
         <!-- 模式选择 -->
         <div class="flex bg-slate-100 p-1 rounded-lg">
-            <button onclick="setMode('chat')" id="btn-chat" class="px-4 py-1.5 rounded-md text-sm font-medium transition-all duration-200 bg-white text-slate-800 shadow-sm">
+            <button onclick="setMode('mcp')" id="btn-mcp" class="px-4 py-1.5 rounded-md text-sm font-medium transition-all duration-200 bg-white text-slate-800 shadow-sm">
+                MCP 搜索
+            </button>
+            <button onclick="setMode('chat')" id="btn-chat" class="px-4 py-1.5 rounded-md text-sm font-medium transition-all duration-200 text-slate-500 hover:text-slate-700">
                 基础对话
             </button>
             <button onclick="setMode('chat2')" id="btn-chat2" class="px-4 py-1.5 rounded-md text-sm font-medium transition-all duration-200 text-slate-500 hover:text-slate-700">
@@ -88,11 +91,17 @@
                     <span class="text-xs text-slate-400">刚刚</span>
                 </div>
                 <div class="bg-white p-4 rounded-2xl rounded-tl-none shadow-sm border border-slate-100 text-slate-700 leading-relaxed prose max-w-none">
-                    <p>您好！我是您的智能汽车销售助手。我可以为您介绍我们的汽车品牌、车型信息，或者帮您查询订单。</p>
+                    <p>您好！我是您的智能助手，支持多种模式：</p>
+                    <ul>
+                        <li><strong>MCP 搜索模式</strong>：支持实时流式响应和互联网搜索功能</li>
+                        <li><strong>基础对话模式</strong>：传统问答模式</li>
+                        <li><strong>记忆对话模式</strong>：支持多轮对话上下文</li>
+                    </ul>
                     <p>您可以问我：</p>
                     <ul>
-                        <li>"你们店有哪些汽车品牌？"</li>
-                        <li>"帮我查一下奔驰C260L的价格"</li>
+                        <li>"查询今天杭州到上海的高铁信息"（MCP 搜索）</li>
+                        <li>"你们店有哪些汽车品牌？"（基础对话）</li>
+                        <li>"帮我查一下奔驰C260L的价格"（记忆对话）</li>
                     </ul>
                 </div>
             </div>
@@ -128,7 +137,7 @@
     <script>
         // 状态管理
         let state = {
-            mode: 'chat', // 'chat' or 'chat2'
+            mode: 'mcp', // 'mcp', 'chat' or 'chat2'
             userId: 1,
             isProcessing: false
         };
@@ -136,23 +145,29 @@
         const chatContainer = document.getElementById('chat-container');
         const userInput = document.getElementById('user-input');
         const sendBtn = document.getElementById('send-btn');
+        const btnMcp = document.getElementById('btn-mcp');
         const btnChat = document.getElementById('btn-chat');
         const btnChat2 = document.getElementById('btn-chat2');
 
         // 切换模式
         function setMode(mode) {
             state.mode = mode;
-            if (mode === 'chat') {
-                btnChat.className = "px-4 py-1.5 rounded-md text-sm font-medium transition-all duration-200 bg-white text-slate-800 shadow-sm";
-                btnChat2.className = "px-4 py-1.5 rounded-md text-sm font-medium transition-all duration-200 text-slate-500 hover:text-slate-700";
-            } else {
-                btnChat2.className = "px-4 py-1.5 rounded-md text-sm font-medium transition-all duration-200 bg-white text-slate-800 shadow-sm";
-                btnChat.className = "px-4 py-1.5 rounded-md text-sm font-medium transition-all duration-200 text-slate-500 hover:text-slate-700";
-            }
+            
+            // 重置所有按钮样式
+            const activeClass = "px-4 py-1.5 rounded-md text-sm font-medium transition-all duration-200 bg-white text-slate-800 shadow-sm";
+            const inactiveClass = "px-4 py-1.5 rounded-md text-sm font-medium transition-all duration-200 text-slate-500 hover:text-slate-700";
+            
+            btnMcp.className = mode === 'mcp' ? activeClass : inactiveClass;
+            btnChat.className = mode === 'chat' ? activeClass : inactiveClass;
+            btnChat2.className = mode === 'chat2' ? activeClass : inactiveClass;
             
             // 添加系统提示
-            const tip = mode === 'chat' ? "已切换至基础对话模式" : "已切换至记忆对话模式 (User ID: 1)";
-            appendSystemMessage(tip);
+            const tips = {
+                'mcp': "已切换至 MCP 搜索模式（支持流式响应和工具调用）",
+                'chat': "已切换至基础对话模式",
+                'chat2': "已切换至记忆对话模式 (User ID: 1)"
+            };
+            appendSystemMessage(tips[mode] || "模式已切换");
         }
 
         // 自动调整输入框高度
@@ -169,7 +184,7 @@
             }
         }
 
-        // 提交表单
+        // 提交表单 - 支持流式响应
         async function handleSubmit(e) {
             e.preventDefault();
             const question = userInput.value.trim();
@@ -189,36 +204,222 @@
             const loadingId = appendLoadingMessage();
 
             try {
-                // 4. 构建请求
+                // 4. 构建请求 URL
                 let url = '';
-                if (state.mode === 'chat') {
+                if (state.mode === 'mcp') {
+                    // MCP 搜索接口（支持流式响应）
+                    url = `/mcp/search?question=${encodeURIComponent(question)}`;
+                } else if (state.mode === 'chat') {
+                    // 基础对话接口（非流式）
                     url = `/chat?question=${encodeURIComponent(question)}`;
                 } else {
+                    // 记忆对话接口（非流式）
                     url = `/chat2?question=${encodeURIComponent(question)}&userId=${state.userId}`;
                 }
 
-                const response = await fetch(url);
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+                // 5. 根据模式选择处理方式
+                if (state.mode === 'mcp') {
+                    // MCP 模式：使用流式响应
+                    await handleStreamResponse(url, loadingId);
+                } else {
+                    // 其他模式：使用传统响应
+                    await handleNormalResponse(url, loadingId);
                 }
-
-                const data = await response.text();
-                
-                // 5. 移除 Loading，开始流式打字效果
-                removeMessage(loadingId);
-                appendAIMessage(data);
-
             } catch (error) {
                 removeMessage(loadingId);
                 appendErrorMessage("抱歉，服务器连接出现问题，请稍后再试。");
-                console.error(error);
+                console.error('请求错误:', error);
             } finally {
                 state.isProcessing = false;
                 sendBtn.disabled = false;
                 userInput.disabled = false;
                 userInput.focus();
             }
+        }
+
+        // 处理流式响应（SSE）
+        async function handleStreamResponse(url, loadingId) {
+            const response = await fetch(url);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            // 移除 Loading，创建 AI 消息容器
+            removeMessage(loadingId);
+            const msgId = appendAIMessageContainer();
+
+            // 读取流式数据
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            let fullText = '';
+            let isToolCalling = false;
+
+            console.log('开始读取流式数据'); // 调试日志
+
+            while (true) {
+                const { done, value } = await reader.read();
+                
+                if (done) {
+                    console.log('流读取完成，最终文本长度:', fullText.length); // 调试日志
+                    // 流结束，移除打字光标
+                    const contentDiv = document.querySelector(`#${msgId} .prose`);
+                    if (contentDiv) {
+                        contentDiv.classList.add('typing-done');
+                        removeToolCallStatus(msgId);
+                        // 如果流结束时还没有内容，显示提示
+                        if (!fullText.trim()) {
+                            contentDiv.innerHTML = '<p class="text-slate-500">未收到响应内容</p>';
+                        }
+                    }
+                    break;
+                }
+
+                // 解码数据
+                const chunk = decoder.decode(value, { stream: true });
+                buffer += chunk;
+                console.log('收到数据块，长度:', chunk.length, '缓冲区长度:', buffer.length); // 调试日志
+                
+                // 处理 SSE 格式的数据（以 \n\n 分隔事件）
+                const lines = buffer.split('\n\n');
+                buffer = lines.pop() || ''; // 保留最后一个不完整的事件
+
+                for (const line of lines) {
+                    if (!line.trim()) continue; // 跳过空行
+                    
+                    // 处理 SSE 格式：data: {...} 或 data:{...}
+                    let dataStr = null;
+                    if (line.startsWith('data: ')) {
+                        dataStr = line.substring(6).trim(); // 移除 'data: ' 前缀
+                    } else if (line.startsWith('data:')) {
+                        dataStr = line.substring(5).trim(); // 移除 'data:' 前缀
+                    }
+                    
+                    if (!dataStr) {
+                        console.log('跳过非 data 行:', line.substring(0, 50)); // 调试日志
+                        continue;
+                    }
+                    
+                    // 跳过空数据
+                    if (dataStr === '' || dataStr === '{}') {
+                        console.log('跳过空数据'); // 调试日志
+                        continue;
+                    }
+                    
+                    try {
+                        const data = JSON.parse(dataStr);
+                        console.log('解析 SSE 数据成功，node:', data.node, 'chunk:', data.chunk); // 调试日志
+                        
+                        // 处理不同类型的响应
+                        if (data.node === '__INVOKE_RESULT') {
+                            // 工具执行完成的结果
+                            removeToolCallStatus(msgId);
+                            isToolCalling = false;
+                            
+                            if (data.text) {
+                                try {
+                                    // text 字段是一个 JSON 字符串，需要解析
+                                    const resultData = JSON.parse(data.text);
+                                    // 提取最终的回答文本
+                                    if (resultData.OverAllState && resultData.OverAllState.data && 
+                                        resultData.OverAllState.data.messages) {
+                                        const messages = resultData.OverAllState.data.messages;
+                                        // 找到最后一个 ASSISTANT 消息（finishReason 为 STOP）
+                                        for (let i = messages.length - 1; i >= 0; i--) {
+                                            const msg = messages[i];
+                                            if (msg.messageType === 'ASSISTANT' && 
+                                                msg.text && 
+                                                msg.metadata && 
+                                                msg.metadata.finishReason === 'STOP') {
+                                                // 追加最终回答（如果之前有流式内容，用换行分隔）
+                                                if (fullText.trim()) {
+                                                    fullText += '\n\n';
+                                                }
+                                                fullText += msg.text;
+                                                updateAIMessageContent(msgId, fullText);
+                                                break;
+                                            }
+                                        }
+                                    } else {
+                                        // 如果结构不匹配，尝试直接使用 text
+                                        if (fullText.trim()) {
+                                            fullText += '\n\n';
+                                        }
+                                        fullText += data.text;
+                                        updateAIMessageContent(msgId, fullText);
+                                    }
+                                } catch (parseError) {
+                                    // 如果解析失败，直接使用 text 内容
+                                    console.warn('解析 __INVOKE_RESULT 失败:', parseError);
+                                    if (fullText.trim()) {
+                                        fullText += '\n\n';
+                                    }
+                                    fullText += data.text;
+                                    updateAIMessageContent(msgId, fullText);
+                                }
+                            }
+                        } else if (data.chunk !== undefined && data.chunk !== null && data.chunk !== '') {
+                            // 流式文本片段（chunk 字段）- 优先处理
+                            // 注意：chunk 可能是空字符串，需要检查
+                            fullText += data.chunk;
+                            updateAIMessageContent(msgId, fullText);
+                            console.log('更新内容，chunk:', data.chunk, '当前全文长度:', fullText.length); // 调试日志
+                        } else if (data.message) {
+                            // 处理消息对象
+                            if (data.message.messageType === 'tool-request' && 
+                                data.message.toolCalls && data.message.toolCalls.length > 0) {
+                                // 检测到工具调用
+                                isToolCalling = true;
+                                const toolNames = data.message.toolCalls
+                                    .map(tc => tc.name || '未知工具')
+                                    .join(', ');
+                                appendToolCallStatus(msgId, `正在调用工具: ${toolNames}...`);
+                            } else if (data.message.content && data.message.content.trim() && !data.chunk) {
+                                // 如果有 content 但没有 chunk，使用 content
+                                fullText += data.message.content;
+                                updateAIMessageContent(msgId, fullText);
+                                console.log('更新内容，content:', data.message.content); // 调试日志
+                            }
+                        } else if (data.text && data.node !== '__INVOKE_RESULT') {
+                            // 备用：如果有 text 字段（非 __INVOKE_RESULT）
+                            fullText += data.text;
+                            updateAIMessageContent(msgId, fullText);
+                            console.log('更新内容，text:', data.text); // 调试日志
+                        } else if (data.node === '__END__') {
+                            // Stream 结束，但可能还有工具在执行
+                            if (isToolCalling) {
+                                appendToolCallStatus(msgId, '工具执行中，请稍候...');
+                            }
+                        } else {
+                            // 其他情况，记录日志以便调试
+                            console.log('未处理的数据节点:', data.node, 'chunk存在:', data.chunk !== undefined, data);
+                        }
+                    } catch (parseError) {
+                        // JSON 解析错误
+                        console.error('解析 SSE 数据失败:', parseError, '原始数据:', dataStr.substring(0, 100));
+                        // 尝试直接显示原始数据（用于调试）
+                        if (dataStr && dataStr.length < 200) {
+                            console.log('原始数据内容:', dataStr);
+                        }
+                    }
+                }
+            }
+        }
+
+        // 处理普通响应（非流式）
+        async function handleNormalResponse(url, loadingId) {
+            const response = await fetch(url);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.text();
+            
+            // 移除 Loading，开始流式打字效果
+            removeMessage(loadingId);
+            appendAIMessage(data);
         }
 
         // 添加用户消息
@@ -239,8 +440,8 @@
             scrollToBottom();
         }
 
-        // 添加 AI 消息 (带打字机效果)
-        function appendAIMessage(rawText) {
+        // 添加 AI 消息容器（用于流式更新）
+        function appendAIMessageContainer() {
             const msgId = 'msg-' + Date.now();
             const html = `
                 <div class="flex gap-4 max-w-3xl mx-auto message-anim" id="${msgId}">
@@ -249,19 +450,79 @@
                     </div>
                     <div class="flex-1 space-y-2 min-w-0">
                         <div class="flex items-center gap-2">
-                            <span class="text-sm font-semibold text-slate-700">销售助手</span>
+                            <span class="text-sm font-semibold text-slate-700">MCP 搜索助手</span>
                         </div>
                         <div class="bg-white p-4 rounded-2xl rounded-tl-none shadow-sm border border-slate-100 text-slate-700 leading-relaxed prose max-w-none cursor">
-                            <!-- Content will be typed here -->
+                            <p class="text-slate-400">等待响应...</p>
+                        </div>
+                        <div class="tool-status-container" style="display: none;">
+                            <!-- 工具调用状态将显示在这里 -->
                         </div>
                     </div>
                 </div>
             `;
             chatContainer.insertAdjacentHTML('beforeend', html);
             scrollToBottom();
+            console.log('创建消息容器，msgId:', msgId); // 调试日志
+            return msgId;
+        }
 
+        // 更新 AI 消息内容（实时流式更新）
+        function updateAIMessageContent(msgId, text) {
             const contentDiv = document.querySelector(`#${msgId} .prose`);
-            typeWriter(contentDiv, rawText);
+            if (!contentDiv) {
+                console.warn('找不到消息容器，msgId:', msgId);
+                return;
+            }
+
+            console.log('更新消息内容，长度:', text.length, '预览:', text.substring(0, 50)); // 调试日志
+
+            // 实时渲染 Markdown（为了更好的性能，可以节流）
+            try {
+                if (text.trim()) {
+                    contentDiv.innerHTML = marked.parse(text);
+                } else {
+                    contentDiv.innerHTML = '<p class="text-slate-400">等待响应...</p>';
+                }
+                scrollToBottom();
+            } catch (error) {
+                console.error('渲染 Markdown 失败:', error);
+                contentDiv.textContent = text; // 降级为纯文本
+            }
+        }
+
+        // 添加工具调用状态提示
+        function appendToolCallStatus(msgId, statusText) {
+            const statusContainer = document.querySelector(`#${msgId} .tool-status-container`);
+            if (!statusContainer) return;
+
+            statusContainer.style.display = 'block';
+            statusContainer.innerHTML = `
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-2 text-xs text-blue-700 flex items-center gap-2">
+                    <i class="fa-solid fa-cog fa-spin"></i>
+                    <span>${escapeHtml(statusText)}</span>
+                </div>
+            `;
+            scrollToBottom();
+        }
+
+        // 移除工具调用状态
+        function removeToolCallStatus(msgId) {
+            const statusContainer = document.querySelector(`#${msgId} .tool-status-container`);
+            if (statusContainer) {
+                statusContainer.style.display = 'none';
+                statusContainer.innerHTML = '';
+            }
+        }
+
+        // 添加 AI 消息 (兼容旧版本，用于非流式响应)
+        function appendAIMessage(rawText) {
+            const msgId = appendAIMessageContainer();
+            updateAIMessageContent(msgId, rawText);
+            const contentDiv = document.querySelector(`#${msgId} .prose`);
+            if (contentDiv) {
+                contentDiv.classList.add('typing-done');
+            }
         }
 
         // 添加 Loading 消息
