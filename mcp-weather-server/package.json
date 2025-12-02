@@ -1,0 +1,22 @@
+{
+  "name": "mcp-weather-server",
+  "version": "1.0.0",
+  "description": "MCP 天气查询服务",
+  "main": "index.js",
+  "type": "module",
+  "bin": {
+    "mcp-weather-server": "./index.js"
+  },
+  "scripts": {
+    "start": "node index.js"
+  },
+  "keywords": [
+    "mcp",
+    "weather"
+  ],
+  "author": "guomaoyang",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  }
+}

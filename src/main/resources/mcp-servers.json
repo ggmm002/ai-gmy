@@ -6,6 +6,12 @@
         "12306-mcp"
       ],
       "command": "npx"
+    },
+    "mcp-weather-server": {
+      "command": "node",
+      "args": [
+        "/Users/guomaoyang/IdeaProjects/ai-gmy/mcp-weather-server/index.js"
+      ]
     }
   }
 }

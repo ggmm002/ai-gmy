@@ -34,7 +34,7 @@ AI-GMY 是一个基于 Spring Boot 和 Spring AI Alibaba Agent Framework 构建�
   - Spring AI Advisors Vector Store 1.1.0-M4
   - Spring AI Starter MCP Client 1.1.0-M4
   - Lombok 1.18.30
-- **MCP 服务**: bing-cn-mcp（通过 npx 运行）
+- **MCP 服务**: 12306-mcp（通过 npx 运行）
 
 ## 项目结构
 
@@ -60,7 +60,8 @@ ai-gmy/
 │   │   │       │   └── ReviewOutput.java         # 评审输出DTO
 │   │   │       ├── interceptor/
 │   │   │       │   ├── ContentInterceptor.java    # 内容拦截器（敏感词过滤）
-│   │   │       │   └── ModelPerformanceInterceptor.java  # 性能监控拦截器
+│   │   │       │   ├── ModelPerformanceInterceptor.java  # 性能监控拦截器
+│   │   │       │   └── MyToolsInceptor.java        # 工具调用拦截器
 │   │   │       └── tool/
 │   │   │           ├── AccountInfoTool.java        # 账号信息查询工具
 │   │   │           ├── CarBrandTool.java           # 汽车品牌查询工具
@@ -73,7 +74,7 @@ ai-gmy/
 │   │       ├── test.txt                            # 测试文档（用于RAG向量化）
 │   │       ├── img/                                # 图片资源目录
 │   │       └── static/                             # 静态资源目录
-│   │           └── index.html                      # 前端页面
+│   │           └── index.html                      # 前端聊天界面（支持流式响应）
 │   └── test/                                       # 测试代码
 └── pom.xml                                         # Maven 配置文件
 ```
@@ -140,12 +141,14 @@ ai-gmy/
 
 - **模型**: `qwen3-max`
 - **功能**: 基于 MCP（Model Context Protocol）的互联网搜索能力
-- **MCP 服务**: `bing-cn-mcp`（必应中国搜索）
+- **MCP 服务**: `12306-mcp`（通过 npx 运行）
+- **拦截器**: `MyToolsInceptor`（工具调用监控）
 - **特性**: 
   - 通过 Spring AI MCP 客户端集成外部搜索服务
   - 支持实时互联网搜索，获取最新信息
   - 自动获取并使用 MCP 服务提供的工具
   - 支持多轮对话和会话隔离
+  - 支持流式响应（Server-Sent Events）
 - **系统提示词**: 定义为智能搜索助手，具备互联网搜索能力，能够获取最新信息并回答问题
 
 ### 2. 工具（Tools）
@@ -199,6 +202,13 @@ ai-gmy/
 - **记录信息**: 
   - 调用消息条数
   - 模型响应耗时（毫秒）
+
+#### 3.3 MyToolsInceptor（工具调用拦截器）
+
+- **功能**: 监控工具调用情况
+- **记录信息**: 
+  - 工具名称（toolName）
+- **用途**: 用于调试和监控智能体工具调用行为，特别是在 MCP 搜索场景中
 
 ### 4. API 接口
 
@@ -309,13 +319,17 @@ ai-gmy/
 #### 4.5 McpSearchController
 
 ##### GET `/mcp/search`
-- **功能**: MCP 互联网搜索接口
+- **功能**: MCP 互联网搜索接口（流式响应）
 - **参数**: 
   - `question` (String): 用户问题
-- **返回**: 基于互联网搜索的 AI 回答
+- **返回**: Server-Sent Events (SSE) 流式响应，实时返回搜索结果和 AI 回答
 - **特性**: 
-  - 使用 bing-cn-mcp 服务进行互联网搜索
+  - 使用 12306-mcp 服务进行互联网搜索
   - 获取最新的网络信息回答问题
+  - 支持流式输出，实时显示搜索结果
+  - 自动处理工具调用，检测到工具调用时会自动使用 invoke 继续执行
+  - 超时时间设置为 5 分钟
+- **响应格式**: JSON 格式的 Server-Sent Events，包含节点信息、代理名称、消息内容和 Token 使用情况
 
 ##### GET `/mcp/chat`
 - **功能**: MCP 互联网搜索接口（带用户会话）
@@ -344,6 +358,16 @@ spring:
   application:
     name: ai-gmy
   ai:
+    mcp:
+      client:
+        enabled: true
+        name: ai-gmy-mcp-client
+        version: 1.0.0
+        type: SYNC
+        request-timeout: 20s
+        initialized: false
+        stdio:
+          servers-configuration: classpath:mcp-servers.json
     dashscope:
       embedding:
         options:
@@ -365,21 +389,35 @@ spring:
         embeddingDimension: 1536
         indexType: IVF_FLAT
         metricType: COSINE
+
+# logback配置
+logging:
+  file:
+    name: application.log
+    path: logs/
+    max-history: 30
+    max-size: 100MB
+    file-name-pattern: application-%d{yyyy-MM-dd}.log
+    append: true
+    level: DEBUG
+    pattern: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+    encoding: UTF-8
 ```
 
 ### MCP 客户端配置
 
-项目集成了 Spring AI MCP 客户端，用于连接外部 MCP 服务（如 bing-cn-mcp 互联网搜索）。
+项目集成了 Spring AI MCP 客户端，用于连接外部 MCP 服务（如 12306-mcp 互联网搜索）。
 
 #### mcp-servers.json
 
 ```json
 {
   "mcpServers": {
-    "bingcn": {
+    "12306-mcp": {
       "command": "npx",
       "args": [
-        "bing-cn-mcp"
+        "-y",
+        "12306-mcp"
       ]
     }
   }
@@ -416,7 +454,7 @@ spring:
 **使用前提**:
 - 需要安装 Node.js 和 npm
 - 确保 `npx` 命令可用
-- 首次使用时会自动下载 `bing-cn-mcp` 包
+- 首次使用时会自动下载 `12306-mcp` 包（通过 `-y` 参数自动确认）
 
 **重要配置说明**:
 
@@ -512,13 +550,24 @@ curl "http://localhost:7080/multi/chat?question=请写一篇关于人工智能�
 
 ### 8. MCP 互联网搜索
 
-#### 8.1 简单搜索
+#### 8.1 流式搜索（推荐）
 
 ```bash
 curl "http://localhost:7080/mcp/search?question=今天的新闻有哪些"
 ```
 
-此接口会使用 MCP 服务进行互联网搜索，获取最新信息。
+此接口会使用 MCP 服务进行互联网搜索，以 Server-Sent Events (SSE) 流式返回结果。
+
+**前端使用示例**:
+```javascript
+const eventSource = new EventSource('http://localhost:7080/mcp/search?question=今天的新闻有哪些');
+eventSource.onmessage = function(event) {
+    const data = JSON.parse(event.data);
+    console.log('收到数据:', data);
+};
+```
+
+**注意**: 此接口返回流式响应，适合实时显示搜索结果。如果只需要最终结果，可以使用 `/mcp/chat` 接口。
 
 #### 8.2 带会话的搜索
 
@@ -616,6 +665,7 @@ curl "http://localhost:7080/mcp/health"
 - 使用 `RunnableConfig` 和 `threadId` 实现会话隔离
 - 每个用户通过 `userId` 维护独立的对话上下文
 - 使用 `MemorySaver` 保存对话历史
+- 支持多轮对话，上下文自动保留
 
 ### 2. 人工审批流程（HITL）
 
@@ -638,6 +688,8 @@ curl "http://localhost:7080/mcp/health"
 
 - 通过 `ModelPerformanceInterceptor` 监控模型调用性能
 - 记录消息条数和响应时间
+- 通过 `MyToolsInceptor` 监控工具调用情况
+- 日志文件自动轮转，保留 30 天历史，单个文件最大 100MB
 
 ### 6. RAG（检索增强生成）
 
@@ -655,6 +707,14 @@ curl "http://localhost:7080/mcp/health"
 - 实现复杂的多步骤任务流程（如写作+评审）
 - 支持类型化的输入输出（使用 DTO 类）
 - 通过 `AgentTool.getFunctionToolCallback()` 实现智能体间的调用
+- 支持智能体编排和协调
+
+### 8. 流式响应
+
+- 支持 Server-Sent Events (SSE) 流式输出
+- 实时显示搜索结果和 AI 回答
+- 自动处理工具调用，检测到工具调用时自动继续执行
+- 前端界面支持流式对话体验
 
 ## 开发规范
 
@@ -663,6 +723,19 @@ curl "http://localhost:7080/mcp/health"
 1. **禁止使用反射操作对象属性**: 根据对象属性的注释或字段名推断并选中属性再进行对应的操作
 2. **日志输出规范**: 在日志中打印对象时，需要使用 JSON 序列化方法（如 `JSON.toJSONString(object)`）进行转换，避免直接输出对象引用
 3. **中文注释**: 项目使用中文进行注释和文档说明
+
+## 前端界面
+
+项目包含一个现代化的前端聊天界面（`src/main/resources/static/index.html`），提供以下功能：
+
+- **实时对话**: 支持与 AI 智能体进行实时对话
+- **流式响应**: 支持 Server-Sent Events (SSE) 流式显示 AI 回答
+- **多智能体切换**: 可以在不同智能体之间切换（基础对话、RAG、MCP搜索等）
+- **Markdown 渲染**: 支持 Markdown 格式的消息渲染
+- **响应式设计**: 适配不同屏幕尺寸
+- **美观 UI**: 使用 Tailwind CSS 构建的现代化界面
+
+访问方式：启动应用后，在浏览器中打开 `http://localhost:7080/index.html`
 
 ## 扩展建议
 
@@ -717,9 +790,11 @@ curl "http://localhost:7080/mcp/health"
 
 - ✅ 已实现 MCP 客户端集成（mcpSearchAgent）
 - 通过 Spring AI MCP Client 连接外部 MCP 服务
-- 集成 bing-cn-mcp 服务，支持必应搜索
+- 集成 12306-mcp 服务，支持互联网搜索
 - 支持 STDIO 传输方式，通过 npx 启动 MCP 服务
 - 自动加载 MCP 服务提供的工具
+- 支持流式响应（Server-Sent Events）
+- 工具调用监控（MyToolsInceptor）
 
 ## 常见问题
 
@@ -770,9 +845,9 @@ A:
 
 A:
 1. 确保已安装 Node.js 和 npm，且 `npx` 命令可用
-2. 启动应用后，MCP 客户端会自动连接到 bing-cn-mcp 服务
-3. 调用 `/mcp/search` 接口进行简单搜索
-4. 调用 `/mcp/chat` 接口进行带会话的搜索
+2. 启动应用后，MCP 客户端会自动连接到 12306-mcp 服务
+3. 调用 `/mcp/search` 接口进行流式搜索（返回 SSE 流式响应）
+4. 调用 `/mcp/chat` 接口进行带会话的搜索（返回完整结果）
 5. 调用 `/mcp/health` 检查 MCP 服务状态
 
 ### Q: MCP 服务启动失败怎么办？
@@ -780,9 +855,10 @@ A:
 A:
 1. 检查 Node.js 和 npm 是否正确安装：`node -v` 和 `npm -v`
 2. 检查 npx 命令是否可用：`npx -v`
-3. 手动测试 MCP 服务：`npx bing-cn-mcp`
+3. 手动测试 MCP 服务：`npx -y 12306-mcp`
 4. 检查网络连接，首次运行需要下载 npm 包
 5. 查看应用日志，检查 MCP 工具加载情况
+6. 如果遇到 npm 权限问题，执行：`sudo chown -R $(whoami) ~/.npm`
 
 ### Q: 如何配置 Milvus 连接？
 
@@ -805,8 +881,11 @@ A:
 - 新增 `McpSearchController` 控制器，提供 MCP 搜索 API
 - 集成 Spring AI MCP 客户端，支持 STDIO 传输
 - 新增 `mcp-servers.json` 配置文件
-- 更新 `application.yml` 添加 MCP 客户端配置
-- 集成 `bing-cn-mcp` 服务，支持互联网搜索
+- 更新 `application.yml` 添加 MCP 客户端配置和日志配置
+- 集成 `12306-mcp` 服务，支持互联网搜索
+- 新增 `MyToolsInceptor` 工具调用拦截器
+- 支持流式响应（Server-Sent Events）用于实时搜索结果显示
+- 新增前端聊天界面（`index.html`），支持流式对话体验
 
 ### 2025/12/1
 - 新增 `multiAgent` 多智能体协作功能
