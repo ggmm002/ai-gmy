@@ -58,6 +58,12 @@
             <version>${spring-ai-alibaba.version}</version>
         </dependency>
 
+        <dependency>
+            <groupId>com.alibaba.cloud.ai</groupId>
+            <artifactId>spring-ai-alibaba-graph-core</artifactId>
+            <version>${spring-ai-alibaba.version}</version>
+        </dependency>
+
         <!-- DashScope ChatModel 支持（如果使用其他模型，请参考文档选择对应的 starter） -->
         <dependency>
             <groupId>com.alibaba.cloud.ai</groupId>
