@@ -1,6 +1,13 @@
 server:
   port: 7080
 
+# Dify API 配置
+dify:
+  api-key: ${DIFY_API_KEY:app-2kMDeW2zCpRAoUSjCZPmF3Ih}
+  base-url: ${DIFY_BASE_URL:https://api.dify.ai/v1}
+  # 超时设置（LLM生成速度较慢，建议设置较长超时时间）
+  timeout: 180
+
 spring:
   application:
     name: ai-gmy

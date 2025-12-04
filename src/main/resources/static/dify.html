@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dify 工作流助手</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Marked.js for Markdown -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- Highlight.js for code highlighting -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        
+        /* 自定义滚动条 */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        /* Markdown 样式 */
+        .prose p { margin-bottom: 0.75rem; line-height: 1.7; }
+        .prose p:last-child { margin-bottom: 0; }
+        .prose ul { list-style-type: disc; padding-left: 1.5em; margin-bottom: 0.75rem; }
+        .prose ol { list-style-type: decimal; padding-left: 1.5em; margin-bottom: 0.75rem; }
+        .prose li { margin-bottom: 0.25rem; }
+        .prose pre { 
+            background-color: #1e293b; 
+            padding: 1rem; 
+            border-radius: 0.5rem; 
+            overflow-x: auto; 
+            font-size: 0.875em; 
+            margin: 0.75rem 0;
+        }
+        .prose pre code { 
+            background-color: transparent; 
+            color: #e2e8f0; 
+            padding: 0; 
+            font-family: 'Fira Code', 'Monaco', monospace;
+        }
+        .prose code { 
+            background-color: #f1f5f9; 
+            padding: 0.15rem 0.4rem; 
+            border-radius: 0.25rem; 
+            font-family: 'Fira Code', 'Monaco', monospace;
+            font-size: 0.9em; 
+            color: #dc2626; 
+        }
+        .prose h1, .prose h2, .prose h3 { font-weight: 600; margin-top: 1rem; margin-bottom: 0.5rem; }
+        .prose h1 { font-size: 1.5em; }
+        .prose h2 { font-size: 1.25em; }
+        .prose h3 { font-size: 1.1em; }
+        .prose blockquote {
+            border-left: 4px solid #3b82f6;
+            padding-left: 1rem;
+            margin: 0.75rem 0;
+            color: #64748b;
+            background-color: #f8fafc;
+            padding: 0.5rem 1rem;
+            border-radius: 0 0.5rem 0.5rem 0;
+        }
+        .prose table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; }
+        .prose th, .prose td { border: 1px solid #e2e8f0; padding: 0.5rem; text-align: left; }
+        .prose th { background-color: #f8fafc; font-weight: 600; }
+        
+        /* 消息气泡动画 */
+        @keyframes fadeIn { 
+            from { opacity: 0; transform: translateY(10px); } 
+            to { opacity: 1; transform: translateY(0); } 
+        }
+        .message-anim { animation: fadeIn 0.3s ease-out forwards; }
+
+        /* 打字光标 */
+        .cursor::after { 
+            content: '▋'; 
+            display: inline-block; 
+            vertical-align: bottom; 
+            animation: blink 1s infinite; 
+            color: #8b5cf6; 
+            margin-left: 2px; 
+        }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+        .cursor.typing-done::after { display: none; }
+
+        /* 渐变背景 */
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+    </style>
+</head>
+<body class="bg-slate-50 h-screen flex flex-col overflow-hidden">
+
+    <!-- 顶部导航栏 -->
+    <header class="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between shadow-sm z-10">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 gradient-bg rounded-xl flex items-center justify-center text-white shadow-lg shadow-purple-200">
+                <i class="fa-solid fa-wand-magic-sparkles text-xl"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-slate-800 text-lg">Dify 工作流助手</h1>
+                <div class="flex items-center gap-2 text-xs text-slate-500">
+                    <span id="status-indicator" class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                    <span id="status-text">在线</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 会话信息 -->
+        <div class="flex items-center gap-4">
+            <!-- 会话ID显示 -->
+            <div class="hidden md:flex items-center gap-2 text-xs text-slate-500 bg-slate-100 px-3 py-2 rounded-lg">
+                <i class="fa-solid fa-message"></i>
+                <span>会话: <span id="conversation-display" class="font-mono text-slate-700">新会话</span></span>
+            </div>
+            
+            <!-- 新建会话按钮 -->
+            <button onclick="startNewConversation()" 
+                class="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 transition-colors shadow-md">
+                <i class="fa-solid fa-plus"></i>
+                新会话
+            </button>
+        </div>
+    </header>
+
+    <!-- 聊天区域 -->
+    <main id="chat-container" class="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 scroll-smooth">
+        
+        <!-- 欢迎消息 -->
+        <div class="flex gap-4 max-w-3xl mx-auto message-anim">
+            <div class="w-10 h-10 gradient-bg rounded-full flex-shrink-0 flex items-center justify-center text-white text-sm shadow-md">
+                <i class="fa-solid fa-robot"></i>
+            </div>
+            <div class="flex-1 space-y-2">
+                <div class="flex items-center gap-2">
+                    <span class="text-sm font-semibold text-slate-700">Dify 助手</span>
+                    <span class="text-xs text-slate-400">刚刚</span>
+                </div>
+                <div class="bg-white p-4 rounded-2xl rounded-tl-none shadow-sm border border-slate-100 text-slate-700 leading-relaxed prose max-w-none">
+                    <p>👋 您好！我是基于 <strong>Dify</strong> 工作流的智能助手。</p>
+                    <p>我支持以下功能：</p>
+                    <ul>
+                        <li><strong>流式响应</strong>：实时显示回答，打字机效果</li>
+                        <li><strong>多轮对话</strong>：自动维护对话上下文</li>
+                        <li><strong>Markdown 渲染</strong>：支持代码高亮、表格等</li>
+                    </ul>
+                    <p>请随时向我提问！</p>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- 底部输入栏 -->
+    <div class="bg-white border-t border-slate-200 p-4">
+        <div class="max-w-3xl mx-auto relative">
+            <form id="chat-form" onsubmit="handleSubmit(event)" class="relative">
+                <textarea 
+                    id="user-input"
+                    rows="1"
+                    class="w-full bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 text-sm rounded-2xl focus:ring-2 focus:ring-purple-500 focus:border-transparent block pl-4 pr-24 py-3 resize-none shadow-inner transition-all" 
+                    placeholder="输入您的问题... (Shift+Enter 换行)"
+                    onkeydown="handleEnter(event)"
+                    oninput="autoResize(this)"
+                ></textarea>
+                <div class="absolute right-2 bottom-2 flex items-center gap-2">
+                    <!-- 停止按钮 -->
+                    <button 
+                        type="button" 
+                        id="stop-btn"
+                        onclick="stopGeneration()"
+                        class="hidden p-1.5 bg-red-500 text-white rounded-xl hover:bg-red-600 transition-all w-8 h-8 flex items-center justify-center shadow-md"
+                        title="停止生成">
+                        <i class="fa-solid fa-stop text-xs"></i>
+                    </button>
+                    <!-- 发送按钮 -->
+                    <button 
+                        type="submit" 
+                        id="send-btn"
+                        class="p-1.5 gradient-bg text-white rounded-xl hover:opacity-90 focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed w-8 h-8 flex items-center justify-center shadow-md">
+                        <i class="fa-solid fa-paper-plane text-xs"></i>
+                    </button>
+                </div>
+            </form>
+            <div class="text-center mt-2">
+                <p class="text-xs text-slate-400">
+                    基于 Dify 工作流 · 
+                    <span id="token-info" class="text-purple-500"></span>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 配置 marked.js
+        marked.setOptions({
+            highlight: function(code, lang) {
+                if (lang && hljs.getLanguage(lang)) {
+                    return hljs.highlight(code, { language: lang }).value;
+                }
+                return hljs.highlightAuto(code).value;
+            },
+            breaks: true,
+            gfm: true
+        });
+
+        // 状态管理
+        let state = {
+            conversationId: null,  // Dify 返回的会话ID
+            userId: 'user_' + Date.now(),  // 生成唯一用户ID
+            isProcessing: false,
+            abortController: null  // 用于取消请求
+        };
+
+        const chatContainer = document.getElementById('chat-container');
+        const userInput = document.getElementById('user-input');
+        const sendBtn = document.getElementById('send-btn');
+        const stopBtn = document.getElementById('stop-btn');
+        const conversationDisplay = document.getElementById('conversation-display');
+
+        // 开始新会话
+        function startNewConversation() {
+            state.conversationId = null;
+            conversationDisplay.textContent = '新会话';
+            appendSystemMessage('已开始新的对话会话');
+        }
+
+        // 更新会话ID显示
+        function updateConversationDisplay(conversationId) {
+            if (conversationId) {
+                state.conversationId = conversationId;
+                // 只显示前8位
+                conversationDisplay.textContent = conversationId.substring(0, 8) + '...';
+                conversationDisplay.title = conversationId;
+            }
+        }
+
+        // 自动调整输入框高度
+        function autoResize(textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = Math.min(textarea.scrollHeight, 150) + 'px';
+        }
+
+        // 处理回车发送
+        function handleEnter(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSubmit(e);
+            }
+        }
+
+        // 停止生成
+        function stopGeneration() {
+            if (state.abortController) {
+                state.abortController.abort();
+                state.abortController = null;
+            }
+        }
+
+        // 提交表单 - 支持流式响应
+        async function handleSubmit(e) {
+            e.preventDefault();
+            const question = userInput.value.trim();
+            if (!question || state.isProcessing) return;
+
+            // 1. 添加用户消息
+            appendUserMessage(question);
+            userInput.value = '';
+            userInput.style.height = 'auto';
+            
+            // 2. 锁定状态
+            state.isProcessing = true;
+            state.abortController = new AbortController();
+            sendBtn.disabled = true;
+            sendBtn.classList.add('hidden');
+            stopBtn.classList.remove('hidden');
+            userInput.disabled = true;
+            updateStatus('思考中...', 'yellow');
+
+            // 3. 添加 Loading 占位符
+            const loadingId = appendLoadingMessage();
+
+            try {
+                // 4. 构建请求体
+                const requestBody = {
+                    query: question,
+                    userId: state.userId,
+                    conversationId: state.conversationId,
+                    inputs: {}
+                };
+
+                // 5. 发送流式请求
+                const response = await fetch('/dify/chat/stream', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody),
+                    signal: state.abortController.signal
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                // 6. 处理 SSE 流
+                await handleDifyStream(response, loadingId);
+
+            } catch (error) {
+                removeMessage(loadingId);
+                if (error.name === 'AbortError') {
+                    appendSystemMessage('生成已停止');
+                } else {
+                    appendErrorMessage("抱歉，服务器连接出现问题: " + error.message);
+                    console.error('请求错误:', error);
+                }
+            } finally {
+                state.isProcessing = false;
+                state.abortController = null;
+                sendBtn.disabled = false;
+                sendBtn.classList.remove('hidden');
+                stopBtn.classList.add('hidden');
+                userInput.disabled = false;
+                userInput.focus();
+                updateStatus('在线', 'green');
+            }
+        }
+
+        // 处理 Dify SSE 流式响应
+        async function handleDifyStream(response, loadingId) {
+            // 移除 Loading，创建 AI 消息容器
+            removeMessage(loadingId);
+            const msgId = appendAIMessageContainer();
+
+            // 读取流式数据
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            let fullText = '';
+
+            console.log('开始读取 Dify 流式数据');
+
+            while (true) {
+                const { done, value } = await reader.read();
+                
+                if (done) {
+                    console.log('流读取完成，最终文本长度:', fullText.length);
+                    // 流结束，移除打字光标
+                    const contentDiv = document.querySelector(`#${msgId} .prose`);
+                    if (contentDiv) {
+                        contentDiv.classList.add('typing-done');
+                        // 最终渲染一次 Markdown（确保完整）
+                        if (fullText.trim()) {
+                            contentDiv.innerHTML = marked.parse(fullText);
+                            // 重新高亮代码块
+                            contentDiv.querySelectorAll('pre code').forEach((block) => {
+                                hljs.highlightElement(block);
+                            });
+                        } else {
+                            contentDiv.innerHTML = '<p class="text-slate-500">未收到响应内容</p>';
+                        }
+                    }
+                    break;
+                }
+
+                // 解码数据
+                const chunk = decoder.decode(value, { stream: true });
+                buffer += chunk;
+                
+                // 处理 SSE 格式的数据（以 \n\n 分隔事件，或 \n 分隔行）
+                const lines = buffer.split('\n');
+                buffer = '';
+
+                for (let i = 0; i < lines.length; i++) {
+                    const line = lines[i];
+                    
+                    // 如果是最后一行且不为空，可能是不完整的数据，保留到buffer
+                    if (i === lines.length - 1 && line !== '') {
+                        buffer = line;
+                        continue;
+                    }
+                    
+                    if (!line.trim()) continue; // 跳过空行
+                    
+                    // 处理 SSE 格式：data: {...} 或 data:{...}
+                    let dataStr = null;
+                    if (line.startsWith('data: ')) {
+                        dataStr = line.substring(6).trim();
+                    } else if (line.startsWith('data:')) {
+                        dataStr = line.substring(5).trim();
+                    } else {
+                        // 可能是纯文本流（非SSE格式）
+                        // 直接尝试解析JSON
+                        dataStr = line.trim();
+                    }
+                    
+                    if (!dataStr || dataStr === '' || dataStr === '{}') {
+                        continue;
+                    }
+                    
+                    try {
+                        const data = JSON.parse(dataStr);
+                        console.log('Dify SSE 事件:', data.event, data);
+                        
+                        // 处理 Dify 的不同事件类型
+                        switch (data.event) {
+                            case 'message':
+                            case 'agent_message':
+                                // 流式文本片段
+                                if (data.answer) {
+                                    fullText += data.answer;
+                                    updateAIMessageContent(msgId, fullText);
+                                }
+                                // 保存 conversation_id
+                                if (data.conversation_id) {
+                                    updateConversationDisplay(data.conversation_id);
+                                }
+                                break;
+                                
+                            case 'message_end':
+                            case 'agent_message_end':
+                                // 消息结束
+                                if (data.conversation_id) {
+                                    updateConversationDisplay(data.conversation_id);
+                                }
+                                // 显示 token 使用情况
+                                if (data.metadata && data.metadata.usage) {
+                                    const usage = data.metadata.usage;
+                                    document.getElementById('token-info').textContent = 
+                                        `Tokens: ${usage.total_tokens || 0}`;
+                                }
+                                break;
+                                
+                            case 'tts_message':
+                                // TTS 消息，忽略
+                                break;
+                                
+                            case 'tts_message_end':
+                                // TTS 消息结束，忽略
+                                break;
+                                
+                            case 'message_file':
+                                // 文件消息
+                                if (data.url) {
+                                    fullText += `\n![文件](${data.url})\n`;
+                                    updateAIMessageContent(msgId, fullText);
+                                }
+                                break;
+                                
+                            case 'error':
+                                // 错误事件
+                                console.error('Dify 错误:', data);
+                                const errorMsg = data.message || '发生未知错误';
+                                fullText += `\n\n⚠️ **错误**: ${errorMsg}`;
+                                updateAIMessageContent(msgId, fullText);
+                                break;
+                                
+                            case 'ping':
+                                // 心跳，忽略
+                                break;
+                                
+                            default:
+                                // 其他未知事件
+                                console.log('未处理的 Dify 事件:', data.event, data);
+                                // 如果有 answer 字段，仍然处理
+                                if (data.answer) {
+                                    fullText += data.answer;
+                                    updateAIMessageContent(msgId, fullText);
+                                }
+                        }
+                    } catch (parseError) {
+                        // JSON 解析失败，可能是纯文本
+                        console.warn('解析 SSE 数据失败:', parseError.message, '原始数据:', dataStr.substring(0, 100));
+                    }
+                }
+            }
+        }
+
+        // 更新状态指示器
+        function updateStatus(text, color) {
+            const indicator = document.getElementById('status-indicator');
+            const statusText = document.getElementById('status-text');
+            
+            statusText.textContent = text;
+            indicator.className = `w-2 h-2 rounded-full ${color === 'green' ? 'bg-green-500 animate-pulse' : color === 'yellow' ? 'bg-yellow-500 animate-pulse' : 'bg-red-500'}`;
+        }
+
+        // 添加用户消息
+        function appendUserMessage(text) {
+            const html = `
+                <div class="flex gap-4 max-w-3xl mx-auto flex-row-reverse message-anim">
+                    <div class="w-10 h-10 bg-slate-200 rounded-full flex-shrink-0 flex items-center justify-center text-slate-600">
+                        <i class="fa-solid fa-user"></i>
+                    </div>
+                    <div class="flex-1 space-y-2 text-right">
+                        <div class="bg-purple-600 text-white p-4 rounded-2xl rounded-tr-none shadow-md inline-block text-left max-w-full">
+                            <p class="whitespace-pre-wrap text-sm break-words">${escapeHtml(text)}</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+            chatContainer.insertAdjacentHTML('beforeend', html);
+            scrollToBottom();
+        }
+
+        // 添加 AI 消息容器（用于流式更新）
+        function appendAIMessageContainer() {
+            const msgId = 'msg-' + Date.now();
+            const html = `
+                <div class="flex gap-4 max-w-3xl mx-auto message-anim" id="${msgId}">
+                    <div class="w-10 h-10 gradient-bg rounded-full flex-shrink-0 flex items-center justify-center text-white text-sm shadow-md">
+                        <i class="fa-solid fa-robot"></i>
+                    </div>
+                    <div class="flex-1 space-y-2 min-w-0">
+                        <div class="flex items-center gap-2">
+                            <span class="text-sm font-semibold text-slate-700">Dify 助手</span>
+                            <span class="text-xs text-slate-400">${new Date().toLocaleTimeString()}</span>
+                        </div>
+                        <div class="bg-white p-4 rounded-2xl rounded-tl-none shadow-sm border border-slate-100 text-slate-700 leading-relaxed prose max-w-none cursor">
+                            <p class="text-slate-400">正在思考...</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+            chatContainer.insertAdjacentHTML('beforeend', html);
+            scrollToBottom();
+            return msgId;
+        }
+
+        // 更新 AI 消息内容（实时流式更新）
+        function updateAIMessageContent(msgId, text) {
+            const contentDiv = document.querySelector(`#${msgId} .prose`);
+            if (!contentDiv) {
+                console.warn('找不到消息容器，msgId:', msgId);
+                return;
+            }
+
+            try {
+                if (text.trim()) {
+                    contentDiv.innerHTML = marked.parse(text);
+                    // 高亮代码块
+                    contentDiv.querySelectorAll('pre code').forEach((block) => {
+                        hljs.highlightElement(block);
+                    });
+                } else {
+                    contentDiv.innerHTML = '<p class="text-slate-400">正在思考...</p>';
+                }
+                scrollToBottom();
+            } catch (error) {
+                console.error('渲染 Markdown 失败:', error);
+                contentDiv.textContent = text;
+            }
+        }
+
+        // 添加 Loading 消息
+        function appendLoadingMessage() {
+            const id = 'loading-' + Date.now();
+            const html = `
+                <div class="flex gap-4 max-w-3xl mx-auto message-anim" id="${id}">
+                    <div class="w-10 h-10 gradient-bg rounded-full flex-shrink-0 flex items-center justify-center text-white text-sm shadow-md">
+                        <i class="fa-solid fa-robot"></i>
+                    </div>
+                    <div class="bg-white p-4 rounded-2xl rounded-tl-none shadow-sm border border-slate-100 w-24">
+                        <div class="flex items-center gap-1 h-6">
+                            <div class="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style="animation-delay: 0ms"></div>
+                            <div class="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style="animation-delay: 150ms"></div>
+                            <div class="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style="animation-delay: 300ms"></div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            chatContainer.insertAdjacentHTML('beforeend', html);
+            scrollToBottom();
+            return id;
+        }
+
+        // 添加系统提示消息
+        function appendSystemMessage(text) {
+            const html = `
+                <div class="flex justify-center my-4 message-anim">
+                    <span class="text-xs text-slate-400 bg-slate-100 px-3 py-1 rounded-full">
+                        <i class="fa-solid fa-info-circle mr-1"></i>${text}
+                    </span>
+                </div>
+            `;
+            chatContainer.insertAdjacentHTML('beforeend', html);
+            scrollToBottom();
+        }
+
+        // 添加错误消息
+        function appendErrorMessage(text) {
+            const html = `
+                <div class="flex gap-4 max-w-3xl mx-auto message-anim">
+                    <div class="w-10 h-10 bg-red-500 rounded-full flex-shrink-0 flex items-center justify-center text-white text-sm shadow-md">
+                        <i class="fa-solid fa-exclamation"></i>
+                    </div>
+                    <div class="bg-white p-4 rounded-2xl rounded-tl-none shadow-sm border border-red-200 text-red-600">
+                        <p class="font-medium mb-1">出错了</p>
+                        <p class="text-sm">${escapeHtml(text)}</p>
+                    </div>
+                </div>
+            `;
+            chatContainer.insertAdjacentHTML('beforeend', html);
+            scrollToBottom();
+        }
+
+        // 移除消息
+        function removeMessage(id) {
+            const el = document.getElementById(id);
+            if (el) el.remove();
+        }
+
+        // 滚动到底部
+        function scrollToBottom() {
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        // HTML 转义
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // 页面加载完成后聚焦输入框
+        window.onload = function() {
+            userInput.focus();
+        };
+    </script>
+</body>
+</html>

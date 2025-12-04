@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dify 工作流助手</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        
+        /* 渐变背景 */
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+    </style>
+</head>
+<body class="bg-slate-50 h-screen flex flex-col overflow-hidden">
+
+    <!-- 顶部导航栏 -->
+    <header class="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between shadow-sm z-10">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 gradient-bg rounded-xl flex items-center justify-center text-white shadow-lg shadow-purple-200">
+                <i class="fa-solid fa-wand-magic-sparkles text-xl"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-slate-800 text-lg">Dify 工作流助手</h1>
+                <div class="flex items-center gap-2 text-xs text-slate-500">
+                    <span id="status-indicator" class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                    <span id="status-text">在线</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 刷新按钮 -->
+        <div class="flex items-center gap-4">
+            <button onclick="refreshChatbot()" 
+                class="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 transition-colors shadow-md">
+                <i class="fa-solid fa-rotate-right"></i>
+                刷新
+            </button>
+        </div>
+    </header>
+
+    <!-- Dify Chatbot iframe 区域 -->
+    <main class="flex-1 overflow-hidden">
+        <iframe
+            id="dify-chatbot"
+            src="http://localhost/chatbot/qnTGxfuywzFYGvwO"
+            style="width: 100%; height: 100%; min-height: 700px; border: none;"
+            frameborder="0"
+            allow="microphone">
+        </iframe>
+    </main>
+
+    <script>
+        // 刷新 Dify Chatbot iframe
+        function refreshChatbot() {
+            const iframe = document.getElementById('dify-chatbot');
+            iframe.src = iframe.src;
+        }
+
+        // 页面加载时检查 iframe 状态
+        window.onload = function() {
+            const iframe = document.getElementById('dify-chatbot');
+            iframe.onload = function() {
+                console.log('Dify Chatbot 已加载');
+            };
+            iframe.onerror = function() {
+                console.error('Dify Chatbot 加载失败');
+            };
+        };
+    </script>
+</body>
+</html>
